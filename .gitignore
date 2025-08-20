@@ -1,3 +1,5 @@
 *:Zone.Identifier
 *.pyc
 CLAUDE.md
+/tests
+results_*
