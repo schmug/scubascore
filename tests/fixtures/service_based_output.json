@@ -1,0 +1,24 @@
+{
+  "services": {
+    "gmail": {
+      "rules": [
+        {
+          "rule_id": "gws.gmail.1.1",
+          "verdict": "PASS"
+        },
+        {
+          "rule_id": "gws.gmail.2.1",
+          "verdict": "FAIL"
+        }
+      ]
+    },
+    "drive": {
+      "results": [
+        {
+          "name": "gws.drive.1.1",
+          "outcome": "PASS"
+        }
+      ]
+    }
+  }
+}

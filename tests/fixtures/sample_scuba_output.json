@@ -1,0 +1,44 @@
+{
+  "MetaData": {
+    "Timestamp": "2024-01-15T10:30:00Z",
+    "Version": "1.0.0"
+  },
+  "Rules": [
+    {
+      "rule_id": "gws.gmail.1.1",
+      "verdict": "PASS",
+      "service": "gmail",
+      "description": "Ensure 2-factor authentication is enabled"
+    },
+    {
+      "rule_id": "gws.gmail.2.1",
+      "verdict": "FAIL",
+      "service": "gmail",
+      "description": "Ensure SPF records are configured"
+    },
+    {
+      "rule_id": "gws.drive.1.1",
+      "verdict": "PASS",
+      "service": "drive",
+      "description": "Ensure external sharing is restricted"
+    },
+    {
+      "rule_id": "gws.drive.2.1",
+      "verdict": "FAIL",
+      "service": "drive",
+      "description": "Ensure DLP policies are configured"
+    },
+    {
+      "rule_id": "gws.common.1.1",
+      "verdict": "PASS",
+      "service": "common",
+      "description": "Ensure admin accounts have 2FA"
+    },
+    {
+      "rule_id": "gws.common.2.1",
+      "verdict": "N/A",
+      "service": "common",
+      "description": "Not applicable in this environment"
+    }
+  ]
+}
