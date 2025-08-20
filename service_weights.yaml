@@ -1,0 +1,10 @@
+service_weights:
+  gmail: 0.20
+  drive: 0.20
+  common: 0.20
+  groups: 0.10
+  chat: 0.10
+  meet: 0.05
+  calendar: 0.05
+  classroom: 0.05
+  sites: 0.05

@@ -1,0 +1,18 @@
+# Map specific rule IDs or prefixes to weights (1=Low, 2=Medium, 3=High, 5=Critical)
+weights:
+  # Specific IDs (examples — replace with your IDs from ScubaGoggles output)
+  gws.common.admin_2sv_required: 5
+  gws.common.oauth_limit_third_party: 5
+  gws.gmail.dmarc_enforced: 5
+  gws.drive.external_sharing_restricted: 5
+
+  # Prefix mapping (applies if a rule_id startswith the key and a specific match isn't found)
+  gws.common.: 3
+  gws.gmail.: 2
+  gws.drive.: 2
+  gws.chat.: 2
+  gws.meet.: 2
+  gws.calendar.: 1
+  gws.groups.: 2
+  gws.classroom.: 1
+  gws.sites.: 1
