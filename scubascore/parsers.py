@@ -104,6 +104,15 @@ def normalize_verdict(value: Any) -> Verdict:
         return Verdict.NA
     elif v in {"UNKNOWN", "ERROR", "UNDEFINED"}:
         return Verdict.UNKNOWN
+    elif v in {"WARNING", "WARN"}:
+        # Warnings are typically non-blocking issues, treat as NA
+        return Verdict.NA
+    elif "NO EVENTS FOUND" in v or v == "NO EVENTS FOUND":
+        # No data to evaluate, treat as NA
+        return Verdict.NA
+    elif v in {"MANUAL", "REQUIRES MANUAL CHECK"}:
+        # Manual checks cannot be automated, treat as NA
+        return Verdict.NA
     
     logger.warning(f"Unknown verdict value: {value}")
     return Verdict.UNKNOWN
@@ -154,6 +163,7 @@ def parse_rule_entry(
         entry.get("name") or 
         entry.get("check_id") or
         entry.get("control_id") or
+        entry.get("Control ID") or  # ScubaGoggles v0.5.0
         "unknown"
     )
     
@@ -161,6 +171,7 @@ def parse_rule_entry(
     verdict = normalize_verdict(
         entry.get("verdict") or 
         entry.get("result") or 
+        entry.get("Result") or  # ScubaGoggles v0.5.0
         entry.get("status") or
         entry.get("outcome") or
         entry.get("compliance_status")
@@ -183,7 +194,8 @@ def parse_rule_entry(
         entry.get("severity") or 
         entry.get("priority") or 
         entry.get("weight_class") or
-        entry.get("criticality")
+        entry.get("criticality") or
+        entry.get("Criticality")  # ScubaGoggles v0.5.0
     )
     
     # Get weight from config
@@ -242,6 +254,22 @@ def iter_rules_from_json(data: Any) -> Iterator[Dict[str, Any]]:
                             logger.debug(f"Found rules under {key}[*].{rules_key}")
                             yield from item[rules_key]
                             return
+    
+    # Handle ScubaGoggles v0.5.0 structure: {"Results": {"service": [{"Controls": [...]}]}}
+    results_data = data.get("Results") or data.get("results")
+    if isinstance(results_data, dict):
+        logger.debug("Found ScubaGoggles v0.5.0 Results structure")
+        for service_name, groups in results_data.items():
+            if isinstance(groups, list):
+                for group in groups:
+                    if isinstance(group, dict) and "Controls" in group:
+                        for control in group["Controls"]:
+                            if isinstance(control, dict):
+                                # Inject service name if not present
+                                if "service" not in control:
+                                    control = {**control, "service": service_name}
+                                yield control
+        return
     
     # Handle service-based structure: {"services": {"gmail": {"rules": [...]}}}
     services_data = data.get("services") or data.get("Services")

@@ -156,3 +156,6 @@ tmp/
 
 # Scuba Results
 ScubaResults_*.json
+
+# Compensating
+*:Zone.Identifier
