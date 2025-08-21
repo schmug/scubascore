@@ -63,16 +63,14 @@ def compute_scores(
         if rule.verdict == Verdict.PASS:
             service_aggregates[service]["evaluated_weight"] += rule.weight
             service_aggregates[service]["passed_weight"] += rule.weight
-            service_aggregates[service]["passed_rules"].append((rule.rule_id, rule.weight))
+            service_aggregates[service]["passed_rules"].append(rule)
             
         elif rule.verdict == Verdict.FAIL:
             # Apply compensating control credit
             credit = rule.weight * 0.5 if rule.compensating_control else 0.0
             service_aggregates[service]["evaluated_weight"] += rule.weight
             service_aggregates[service]["passed_weight"] += credit
-            service_aggregates[service]["failed_rules"].append(
-                (rule.rule_id, rule.weight, bool(rule.compensating_control))
-            )
+            service_aggregates[service]["failed_rules"].append(rule)
             
         elif rule.verdict == Verdict.NA:
             data_quality.na_entries += 1

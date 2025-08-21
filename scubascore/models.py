@@ -24,6 +24,8 @@ class Rule:
     severity: Optional[str] = None
     weight: float = 1.0
     compensating_control: Optional[str] = None
+    documentation_url: Optional[str] = None
+    requirement: Optional[str] = None
     raw_data: Dict = field(default_factory=dict)
 
     def is_evaluated(self) -> bool:
@@ -47,8 +49,8 @@ class ServiceScore:
     score: Optional[float] = None
     evaluated_weight: float = 0.0
     passed_weight: float = 0.0
-    passed_rules: List[Tuple[str, float]] = field(default_factory=list)
-    failed_rules: List[Tuple[str, float, bool]] = field(default_factory=list)  # (id, weight, has_compensating)
+    passed_rules: List['Rule'] = field(default_factory=list)
+    failed_rules: List['Rule'] = field(default_factory=list)
     
     @property
     def passed_count(self) -> int:
@@ -91,19 +93,45 @@ class ScoreResult:
     
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization."""
+        per_service = {}
+        for name, svc in self.service_scores.items():
+            service_data = {
+                "score": svc.score,
+                "evaluated_weight": svc.evaluated_weight,
+                "passed_weight": svc.passed_weight,
+                "passed_count": svc.passed_count,
+                "failed_count": svc.failed_count,
+            }
+            
+            # Include detailed rule information if needed
+            if svc.passed_rules:
+                service_data["passed_rules"] = [
+                    {
+                        "rule_id": rule.rule_id,
+                        "weight": rule.weight,
+                        "documentation_url": rule.documentation_url,
+                    }
+                    for rule in svc.passed_rules
+                ]
+            
+            if svc.failed_rules:
+                service_data["failed_rules"] = [
+                    {
+                        "rule_id": rule.rule_id,
+                        "weight": rule.weight,
+                        "has_compensating_control": bool(rule.compensating_control),
+                        "documentation_url": rule.documentation_url,
+                        "requirement": rule.requirement,
+                    }
+                    for rule in svc.failed_rules
+                ]
+            
+            per_service[name] = service_data
+        
         return {
             "generated_at": self.generated_at.isoformat() + "Z",
             "overall_score": self.overall_score,
-            "per_service": {
-                name: {
-                    "score": svc.score,
-                    "evaluated_weight": svc.evaluated_weight,
-                    "passed_weight": svc.passed_weight,
-                    "passed_count": svc.passed_count,
-                    "failed_count": svc.failed_count,
-                }
-                for name, svc in self.service_scores.items()
-            },
+            "per_service": per_service,
             "data_quality": {
                 "unknown_or_error_entries": self.data_quality.unknown_or_error_entries,
                 "total_entries_seen": self.data_quality.total_entries,

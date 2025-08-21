@@ -208,6 +208,28 @@ def parse_rule_entry(
     if compensating_config:
         compensating_control = compensating_config.get_control(rule_id)
     
+    # Extract requirement text
+    requirement = (
+        entry.get("requirement") or
+        entry.get("Requirement") or
+        entry.get("description") or
+        entry.get("Description")
+    )
+    
+    # Extract or construct documentation URL
+    documentation_url = entry.get("documentation_url") or entry.get("DocumentationURL")
+    if not documentation_url:
+        # Try to construct from group URL if available
+        group_url = entry.get("GroupReferenceURL")
+        if group_url and rule_id:
+            # Extract control number from rule_id (e.g., "GWS.CALENDAR.1.1v0.5" -> "1.1")
+            import re
+            match = re.search(r'\.(\d+\.\d+)', rule_id)
+            if match:
+                control_num = match.group(1)
+                # Construct specific control URL by appending control number
+                documentation_url = f"{group_url}#{control_num.replace('.', '')}"
+    
     return Rule(
         rule_id=rule_id,
         verdict=verdict,
@@ -215,6 +237,8 @@ def parse_rule_entry(
         severity=severity,
         weight=weight,
         compensating_control=compensating_control,
+        documentation_url=documentation_url,
+        requirement=requirement,
         raw_data=entry,
     )
 
@@ -263,11 +287,15 @@ def iter_rules_from_json(data: Any) -> Iterator[Dict[str, Any]]:
             if isinstance(groups, list):
                 for group in groups:
                     if isinstance(group, dict) and "Controls" in group:
+                        group_url = group.get("GroupReferenceURL", "")
                         for control in group["Controls"]:
                             if isinstance(control, dict):
                                 # Inject service name if not present
                                 if "service" not in control:
                                     control = {**control, "service": service_name}
+                                # Inject group URL for control-specific URL construction
+                                if "GroupReferenceURL" not in control and group_url:
+                                    control["GroupReferenceURL"] = group_url
                                 yield control
         return
     

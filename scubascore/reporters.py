@@ -72,18 +72,8 @@ def write_json_report(result: ScoreResult, prefix: Path) -> Path:
     # Convert to dictionary with additional details
     data = result.to_dict()
     
-    # Add failed rules details
-    data["failed_rules_by_service"] = {}
-    for service_name, service_score in result.service_scores.items():
-        if service_score.failed_rules:
-            data["failed_rules_by_service"][service_name] = [
-                {
-                    "rule_id": rule_id,
-                    "weight": weight,
-                    "has_compensating_control": has_comp,
-                }
-                for rule_id, weight, has_comp in service_score.failed_rules
-            ]
+    # Add failed rules details (now handled by to_dict method)
+    # No need for additional processing as to_dict includes all details
     
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -107,7 +97,7 @@ def write_csv_report(result: ScoreResult, prefix: Path) -> Path:
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         
-        # Write header
+        # Write summary section
         writer.writerow([
             "Service",
             "Score (%)",
@@ -139,7 +129,7 @@ def write_csv_report(result: ScoreResult, prefix: Path) -> Path:
             
             # Count compensating controls
             comp_controls = sum(
-                1 for _, _, has_comp in service.failed_rules if has_comp
+                1 for rule in service.failed_rules if rule.compensating_control
             )
             
             writer.writerow([
@@ -153,10 +143,35 @@ def write_csv_report(result: ScoreResult, prefix: Path) -> Path:
                 comp_controls,
             ])
         
-        # Write summary row
+        # Write summary rows
         writer.writerow([])
         writer.writerow(["Overall Score", result.overall_score or "N/A"])
         writer.writerow(["Generated At", result.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC")])
+        
+        # Write detailed failed rules section
+        writer.writerow([])
+        writer.writerow([])
+        writer.writerow(["Failed Rules Detail"])
+        writer.writerow([
+            "Service",
+            "Rule ID",
+            "Requirement",
+            "Weight",
+            "Compensating Control",
+            "Documentation URL"
+        ])
+        
+        for service_name in sorted(result.service_scores.keys()):
+            service = result.service_scores[service_name]
+            for rule in service.failed_rules:
+                writer.writerow([
+                    service_name,
+                    rule.rule_id,
+                    rule.requirement or "",
+                    rule.weight,
+                    "Yes" if rule.compensating_control else "No",
+                    rule.documentation_url or ""
+                ])
     
     logger.info(f"Generated CSV report: {output_path}")
     return output_path
@@ -195,7 +210,7 @@ def write_html_report(result: ScoreResult, prefix: Path) -> Path:
         
         # Count compensating controls
         comp_controls = sum(
-            1 for _, _, has_comp in service.failed_rules if has_comp
+            1 for rule in service.failed_rules if rule.compensating_control
         )
         
         service_rows.append(
@@ -214,10 +229,23 @@ def write_html_report(result: ScoreResult, prefix: Path) -> Path:
     failed_rules_html = ""
     for service_name, service in result.service_scores.items():
         if service.failed_rules:
-            failed_rules_html += f'<h4>{html.escape(service_name)}</h4>\n<ul>\n'
-            for rule_id, weight, has_comp in service.failed_rules:
-                comp_text = " (compensating control applied)" if has_comp else ""
-                failed_rules_html += f'<li>{html.escape(rule_id)} (weight: {weight}){comp_text}</li>\n'
+            failed_rules_html += f'<h4>{html.escape(service_name)}</h4>\n<ul class="failed-rules">\n'
+            for rule in service.failed_rules:
+                comp_text = " (compensating control applied)" if rule.compensating_control else ""
+                
+                # Create the rule item with optional link
+                if rule.documentation_url:
+                    rule_html = f'<a href="{html.escape(rule.documentation_url)}" target="_blank" rel="noopener">{html.escape(rule.rule_id)}</a>'
+                else:
+                    rule_html = html.escape(rule.rule_id)
+                
+                # Add requirement tooltip if available
+                if rule.requirement:
+                    # Clean up requirement text (remove HTML entities)
+                    req_text = rule.requirement.replace('&quot;', '"').replace('&lt;', '<').replace('&gt;', '>')
+                    rule_html += f' <span class="requirement" title="{html.escape(req_text)}">ⓘ</span>'
+                
+                failed_rules_html += f'<li>{rule_html} <span class="weight">(weight: {rule.weight})</span>{comp_text}</li>\n'
             failed_rules_html += '</ul>\n'
     
     # Generate overall score color
@@ -390,6 +418,26 @@ def write_html_report(result: ScoreResult, prefix: Path) -> Path:
             left: 0;
             color: #dc3545;
             font-weight: bold;
+        }}
+        
+        .failed-rules a {{
+            color: #0066cc;
+            text-decoration: none;
+        }}
+        
+        .failed-rules a:hover {{
+            text-decoration: underline;
+        }}
+        
+        .requirement {{
+            cursor: help;
+            color: #6c757d;
+            font-size: 0.9em;
+        }}
+        
+        .weight {{
+            color: #6c757d;
+            font-size: 0.9em;
         }}
         
         @media (max-width: 768px) {{
