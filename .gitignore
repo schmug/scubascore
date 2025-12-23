@@ -3,3 +3,5 @@
 CLAUDE.md
 /tests
 results_*
+scubascore.db
+__pycache__/
