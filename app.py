@@ -178,7 +178,7 @@ def score_endpoint():
     
     if request.method == 'GET':
         cursor = db.cursor()
-        cursor.execute('SELECT timestamp, overall_score, service_scores, results_json FROM scores ORDER BY timestamp ASC')
+        cursor.execute('SELECT id, timestamp, overall_score, service_scores, results_json FROM scores ORDER BY timestamp ASC')
         rows = cursor.fetchall()
         
         history = []
