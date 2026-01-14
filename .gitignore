@@ -5,3 +5,6 @@ CLAUDE.md
 results_*
 scubascore.db
 __pycache__/
+
+# Auto Claude data directory
+.auto-claude/

@@ -28,6 +28,28 @@
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: white; margin: 5% auto; padding: 20px; border-radius: 8px; width: 80%; max-height: 80vh; overflow-y: auto; }
         .close { float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+
+        /* Tree Navigation */
+        .score-tree { margin-top: 10px; }
+        .tree-node { margin-left: 0; }
+        .tree-node .tree-node { margin-left: 20px; }
+        .tree-node-header { display: flex; align-items: center; padding: 8px 10px; cursor: pointer; border-radius: 4px; user-select: none; }
+        .tree-node-header:hover { background-color: #f3f4f6; }
+        .tree-expand-icon { display: inline-block; width: 16px; height: 16px; margin-right: 8px; transition: transform 0.2s; font-size: 12px; color: #6b7280; }
+        .tree-expand-icon.expanded { transform: rotate(90deg); }
+        .tree-node-children { display: none; }
+        .tree-node-children.expanded { display: block; }
+        .tree-leaf { display: flex; align-items: center; padding: 6px 10px 6px 34px; font-size: 13px; }
+        .tree-leaf:hover { background-color: #f9fafb; }
+        .service-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+        .service-indicator.success { background-color: #10b981; }
+        .service-indicator.warning { background-color: #f59e0b; }
+        .service-indicator.error { background-color: #ef4444; }
+        .tree-score { font-weight: 600; margin-left: 8px; color: #374151; }
+        .tree-counts { font-size: 12px; color: #6b7280; margin-left: 8px; }
+        .tree-rule-weight { font-size: 12px; color: #6b7280; margin-left: auto; }
+        .tree-loading { padding: 10px 34px; color: #6b7280; font-size: 13px; }
+        .tree-empty { padding: 10px 34px; color: #9ca3af; font-size: 13px; font-style: italic; }
     </style>
 </head>
 <body>
@@ -61,6 +83,14 @@
             <thead><tr><th>Service</th><th>Rule ID</th><th>Weight</th><th>Compensated?</th></tr></thead>
             <tbody id="topFailuresBody"></tbody>
         </table>
+    </div>
+
+    <div class="card" id="scoreTreeCard" style="display:none;">
+        <h2>Score Breakdown</h2>
+        <p>Explore scores by service and rule. Click to expand.</p>
+        <div id="scoreTree" class="score-tree">
+            <div class="tree-empty">No scores loaded yet. Upload a JSON file to see the breakdown.</div>
+        </div>
     </div>
 
     <div class="card">
@@ -111,6 +141,7 @@
                 
                 displayLatest(result);
                 displayTopFailures(result.top_failures);
+                renderScoreTree(result.id, result);
                 await loadHistory(); 
 
             } catch (err) {
@@ -157,6 +188,17 @@
                 const response = await fetch('/score');
                 scoreHistory = await response.json();
                 updateChart(scoreHistory);
+
+                // Render tree for the latest score if history exists
+                if (scoreHistory.length > 0) {
+                    const latestScore = scoreHistory[scoreHistory.length - 1];
+                    // Fetch full details for the latest score to render tree
+                    const detailResponse = await fetch(`/score/${latestScore.id}`);
+                    if (detailResponse.ok) {
+                        const fullData = await detailResponse.json();
+                        renderScoreTree(latestScore.id, fullData);
+                    }
+                }
             } catch (err) {
                 console.error("Failed to load history", err);
             }
@@ -287,6 +329,297 @@
             }
         }
 
+        function renderServiceNode(scoreId, serviceName, serviceData) {
+            const passCount = serviceData.passed_count || (serviceData.passed ? serviceData.passed.length : 0);
+            const failCount = serviceData.failed_count || (serviceData.failed ? serviceData.failed.length : 0);
+            const totalRules = passCount + failCount;
+            const serviceScore = serviceData.score !== null ? serviceData.score : 'N/A';
+
+            // Determine service health indicator
+            let indicatorClass = 'success';
+            let countsText = `${passCount} passed, ${failCount} failed`;
+
+            // Edge case: Empty service (no rules)
+            if (totalRules === 0) {
+                indicatorClass = 'warning'; // Neutral warning - no rules to evaluate
+                countsText = 'No rules to evaluate';
+            } else if (failCount > 0) {
+                indicatorClass = serviceScore >= 80 ? 'warning' : 'error';
+            }
+            // If failCount === 0 and totalRules > 0, indicatorClass stays 'success' (all passed)
+
+            return `
+                <div class="tree-node" data-service="${serviceName}">
+                    <div class="tree-node-header" onclick="toggleTreeNode('service-${scoreId}-${serviceName}')">
+                        <span class="tree-expand-icon" id="icon-service-${scoreId}-${serviceName}">▶</span>
+                        <span class="service-indicator ${indicatorClass}"></span>
+                        <strong>${serviceName}</strong>
+                        <span class="tree-score">${serviceScore}</span>
+                        <span class="tree-counts">${countsText}</span>
+                    </div>
+                    <div class="tree-node-children" id="children-service-${scoreId}-${serviceName}" data-loaded="false">
+                        <div class="tree-loading">Click to load rules...</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Maximum number of rules to display before showing "Show more" link
+        const MAX_INITIAL_RULES = 50;
+
+        function renderRuleLeaves(passedRules, failedRules, nodeId) {
+            // Renders individual rules as tree leaves
+            // passedRules: array of [rule_id, weight] or [rule_id, weight, is_comp]
+            // failedRules: array of [rule_id, weight, is_compensated]
+
+            const passedCount = passedRules ? passedRules.length : 0;
+            const failedCount = failedRules ? failedRules.length : 0;
+            const totalCount = passedCount + failedCount;
+
+            // Edge case: Empty service (no rules)
+            if (totalCount === 0) {
+                return '<div class="tree-empty">No rules to evaluate for this service.</div>';
+            }
+
+            // Edge case: All rules passed (no failures)
+            if (failedCount === 0 && passedCount > 0) {
+                let html = `
+                    <div class="tree-leaf" style="background-color: #ecfdf5; border-radius: 4px; margin: 4px 0;">
+                        <span class="badge-pass" style="font-weight: bold;">ALL PASSED</span>
+                        <span style="margin-left: 8px; color: #065f46;">All ${passedCount} rules are passing</span>
+                    </div>
+                `;
+                // Still show individual passed rules (with truncation for large counts)
+                html += renderRuleList(passedRules, [], nodeId);
+                return html;
+            }
+
+            return renderRuleList(passedRules, failedRules, nodeId);
+        }
+
+        function renderRuleList(passedRules, failedRules, nodeId) {
+            // Handles rendering of individual rules with support for large rule counts
+            const passedCount = passedRules ? passedRules.length : 0;
+            const failedCount = failedRules ? failedRules.length : 0;
+            const totalCount = passedCount + failedCount;
+
+            let html = '';
+            let renderedCount = 0;
+            const uniqueId = nodeId || 'rules-' + Date.now();
+
+            // Render failed rules first (higher priority - always show all failures)
+            if (failedRules && failedRules.length > 0) {
+                failedRules.forEach(rule => {
+                    const ruleId = rule[0];
+                    const weight = rule[1];
+                    const isCompensated = rule[2] || false;
+                    const compensatedText = isCompensated ? ' (compensated)' : '';
+
+                    html += `
+                        <div class="tree-leaf">
+                            <span class="badge-fail">FAIL</span>
+                            <span style="margin-left: 8px;">${ruleId}${compensatedText}</span>
+                            <span class="tree-rule-weight">Weight: ${weight}</span>
+                        </div>
+                    `;
+                    renderedCount++;
+                });
+            }
+
+            // Render passed rules (with truncation for large counts)
+            if (passedRules && passedRules.length > 0) {
+                const remainingSlots = MAX_INITIAL_RULES - renderedCount;
+                const showAllPassed = passedRules.length <= remainingSlots;
+                const passedToShow = showAllPassed ? passedRules : passedRules.slice(0, Math.max(0, remainingSlots));
+                const hiddenCount = passedRules.length - passedToShow.length;
+
+                passedToShow.forEach(rule => {
+                    const ruleId = rule[0];
+                    const weight = rule[1];
+
+                    html += `
+                        <div class="tree-leaf">
+                            <span class="badge-pass">PASS</span>
+                            <span style="margin-left: 8px;">${ruleId}</span>
+                            <span class="tree-rule-weight">Weight: ${weight}</span>
+                        </div>
+                    `;
+                });
+
+                // Edge case: Large rule count - show "Show more" link
+                if (hiddenCount > 0) {
+                    html += `
+                        <div class="tree-leaf hidden-rules-container" id="hidden-${uniqueId}" style="display: none;">
+                    `;
+                    passedRules.slice(passedToShow.length).forEach(rule => {
+                        const ruleId = rule[0];
+                        const weight = rule[1];
+                        html += `
+                            <div class="tree-leaf" style="padding-left: 0;">
+                                <span class="badge-pass">PASS</span>
+                                <span style="margin-left: 8px;">${ruleId}</span>
+                                <span class="tree-rule-weight">Weight: ${weight}</span>
+                            </div>
+                        `;
+                    });
+                    html += `</div>`;
+
+                    html += `
+                        <div class="tree-leaf" id="toggle-${uniqueId}" style="cursor: pointer; color: #2563eb;">
+                            <span onclick="toggleHiddenRules('${uniqueId}', ${hiddenCount})" style="text-decoration: underline;">
+                                Show ${hiddenCount} more passed rules...
+                            </span>
+                        </div>
+                    `;
+                }
+            }
+
+            return html;
+        }
+
+        function toggleHiddenRules(uniqueId, hiddenCount) {
+            const hiddenContainer = document.getElementById('hidden-' + uniqueId);
+            const toggleLink = document.getElementById('toggle-' + uniqueId);
+
+            if (!hiddenContainer || !toggleLink) return;
+
+            const isHidden = hiddenContainer.style.display === 'none';
+
+            if (isHidden) {
+                hiddenContainer.style.display = 'block';
+                toggleLink.innerHTML = `
+                    <span onclick="toggleHiddenRules('${uniqueId}', ${hiddenCount})" style="text-decoration: underline; cursor: pointer;">
+                        Hide ${hiddenCount} passed rules
+                    </span>
+                `;
+            } else {
+                hiddenContainer.style.display = 'none';
+                toggleLink.innerHTML = `
+                    <span onclick="toggleHiddenRules('${uniqueId}', ${hiddenCount})" style="text-decoration: underline; cursor: pointer;">
+                        Show ${hiddenCount} more passed rules...
+                    </span>
+                `;
+            }
+        }
+
+        function renderScoreTree(scoreId, scoreData) {
+            const treeContainer = document.getElementById('scoreTree');
+            const treeCard = document.getElementById('scoreTreeCard');
+
+            if (!scoreData || scoreData.overall_score === null) {
+                treeContainer.innerHTML = '<div class="tree-empty">No scores loaded yet. Upload a JSON file to see the breakdown.</div>';
+                treeCard.style.display = 'none';
+                return;
+            }
+
+            treeCard.style.display = 'block';
+
+            // Edge case: Handle missing or empty per_service
+            const perService = scoreData.per_service || {};
+            const serviceCount = Object.keys(perService).length;
+
+            // Edge case: No services found
+            if (serviceCount === 0) {
+                treeContainer.innerHTML = '<div class="tree-empty">No services found in this score result.</div>';
+                return;
+            }
+
+            // Determine overall health indicator
+            const totalFailed = Object.values(perService).reduce((sum, svc) => sum + (svc.failed_count || 0), 0);
+            const totalPassed = Object.values(perService).reduce((sum, svc) => sum + (svc.passed_count || 0), 0);
+            const overallIndicatorClass = totalFailed === 0 ? 'success' : (scoreData.overall_score >= 80 ? 'warning' : 'error');
+
+            // Edge case: Perfect score (all passed)
+            const isPerfectScore = totalFailed === 0 && totalPassed > 0;
+            const perfectScoreBadge = isPerfectScore
+                ? '<span class="badge-pass" style="margin-left: 8px; font-weight: bold;">PERFECT</span>'
+                : '';
+
+            let html = `
+                <div class="tree-node" data-score-id="${scoreId}">
+                    <div class="tree-node-header" onclick="toggleTreeNode('root-${scoreId}')">
+                        <span class="tree-expand-icon" id="icon-root-${scoreId}">▶</span>
+                        <span class="service-indicator ${overallIndicatorClass}"></span>
+                        <strong>Overall Score</strong>
+                        <span class="tree-score">${scoreData.overall_score}</span>
+                        ${perfectScoreBadge}
+                    </div>
+                    <div class="tree-node-children" id="children-root-${scoreId}">
+            `;
+
+            // Render each service as a child node using helper function
+            for (const [serviceName, serviceMetrics] of Object.entries(perService)) {
+                html += renderServiceNode(scoreId, serviceName, serviceMetrics);
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            treeContainer.innerHTML = html;
+        }
+
+        function toggleTreeNode(nodeId) {
+            const icon = document.getElementById('icon-' + nodeId);
+            const children = document.getElementById('children-' + nodeId);
+
+            if (!icon || !children) {
+                return;
+            }
+
+            const isExpanded = children.classList.contains('expanded');
+
+            if (isExpanded) {
+                // Collapse
+                icon.classList.remove('expanded');
+                children.classList.remove('expanded');
+            } else {
+                // Expand
+                icon.classList.add('expanded');
+                children.classList.add('expanded');
+
+                // Lazy load service rules on first expansion
+                if (nodeId.startsWith('service-') && children.dataset.loaded === 'false') {
+                    loadServiceRules(nodeId, children);
+                }
+            }
+        }
+
+        async function loadServiceRules(nodeId, childrenContainer) {
+            // Parse scoreId and serviceName from nodeId (format: service-{scoreId}-{serviceName})
+            const parts = nodeId.replace('service-', '').split('-');
+            const scoreId = parts[0];
+            const serviceName = parts.slice(1).join('-'); // Handle service names with dashes
+
+            childrenContainer.innerHTML = '<div class="tree-loading">Loading rules...</div>';
+
+            try {
+                const response = await fetch(`/score/${scoreId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch score details');
+                }
+
+                const fullResult = await response.json();
+                const serviceData = fullResult.per_service[serviceName];
+
+                if (!serviceData) {
+                    childrenContainer.innerHTML = '<div class="tree-empty">No data found for this service.</div>';
+                    childrenContainer.dataset.loaded = 'true';
+                    return;
+                }
+
+                const passedRules = serviceData.passed || [];
+                const failedRules = serviceData.failed || [];
+
+                childrenContainer.innerHTML = renderRuleLeaves(passedRules, failedRules, nodeId);
+                childrenContainer.dataset.loaded = 'true';
+
+            } catch (err) {
+                childrenContainer.innerHTML = `<div class="tree-empty">Error loading rules: ${err.message}</div>`;
+            }
+        }
+
         function closeModal() {
             document.getElementById('detailModal').style.display = "none";
         }
@@ -297,6 +630,11 @@
                 modal.style.display = "none";
             }
         }
+
+        // Load history on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHistory();
+        });
     </script>
 </body>
 </html>
