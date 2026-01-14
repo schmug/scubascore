@@ -178,6 +178,8 @@ def compute_scores(scuba_json, weights_map, service_weights, compensating):
             "passed_weight": round(agg["W_pass"], 2),
             "passed_count": len(agg["passed"]),
             "failed_count": len(agg["failed"]),
+            "passed": agg["passed"],
+            "failed": agg["failed"],
         }
 
     # Overall score as weighted mean of available services
