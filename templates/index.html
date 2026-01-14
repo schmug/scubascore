@@ -141,6 +141,7 @@
                 
                 displayLatest(result);
                 displayTopFailures(result.top_failures);
+                renderScoreTree(result.id, result);
                 await loadHistory(); 
 
             } catch (err) {
@@ -187,6 +188,17 @@
                 const response = await fetch('/score');
                 scoreHistory = await response.json();
                 updateChart(scoreHistory);
+
+                // Render tree for the latest score if history exists
+                if (scoreHistory.length > 0) {
+                    const latestScore = scoreHistory[scoreHistory.length - 1];
+                    // Fetch full details for the latest score to render tree
+                    const detailResponse = await fetch(`/score/${latestScore.id}`);
+                    if (detailResponse.ok) {
+                        const fullData = await detailResponse.json();
+                        renderScoreTree(latestScore.id, fullData);
+                    }
+                }
             } catch (err) {
                 console.error("Failed to load history", err);
             }
@@ -502,6 +514,11 @@
                 modal.style.display = "none";
             }
         }
+
+        // Load history on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHistory();
+        });
     </script>
 </body>
 </html>
