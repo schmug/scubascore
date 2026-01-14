@@ -432,6 +432,27 @@
             treeContainer.innerHTML = html;
         }
 
+        function toggleTreeNode(nodeId) {
+            const icon = document.getElementById('icon-' + nodeId);
+            const children = document.getElementById('children-' + nodeId);
+
+            if (!icon || !children) {
+                return;
+            }
+
+            const isExpanded = children.classList.contains('expanded');
+
+            if (isExpanded) {
+                // Collapse
+                icon.classList.remove('expanded');
+                children.classList.remove('expanded');
+            } else {
+                // Expand
+                icon.classList.add('expanded');
+                children.classList.add('expanded');
+            }
+        }
+
         function closeModal() {
             document.getElementById('detailModal').style.display = "none";
         }
