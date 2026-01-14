@@ -450,6 +450,45 @@
                 // Expand
                 icon.classList.add('expanded');
                 children.classList.add('expanded');
+
+                // Lazy load service rules on first expansion
+                if (nodeId.startsWith('service-') && children.dataset.loaded === 'false') {
+                    loadServiceRules(nodeId, children);
+                }
+            }
+        }
+
+        async function loadServiceRules(nodeId, childrenContainer) {
+            // Parse scoreId and serviceName from nodeId (format: service-{scoreId}-{serviceName})
+            const parts = nodeId.replace('service-', '').split('-');
+            const scoreId = parts[0];
+            const serviceName = parts.slice(1).join('-'); // Handle service names with dashes
+
+            childrenContainer.innerHTML = '<div class="tree-loading">Loading rules...</div>';
+
+            try {
+                const response = await fetch(`/score/${scoreId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch score details');
+                }
+
+                const fullResult = await response.json();
+                const serviceData = fullResult.per_service[serviceName];
+
+                if (!serviceData) {
+                    childrenContainer.innerHTML = '<div class="tree-empty">No data found for this service.</div>';
+                    childrenContainer.dataset.loaded = 'true';
+                    return;
+                }
+
+                const passedRules = serviceData.passed || [];
+                const failedRules = serviceData.failed || [];
+
+                childrenContainer.innerHTML = renderRuleLeaves(passedRules, failedRules);
+                childrenContainer.dataset.loaded = 'true';
+
+            } catch (err) {
+                childrenContainer.innerHTML = `<div class="tree-empty">Error loading rules: ${err.message}</div>`;
             }
         }
 
