@@ -344,6 +344,54 @@
             `;
         }
 
+        function renderRuleLeaves(passedRules, failedRules) {
+            // Renders individual rules as tree leaves
+            // passedRules: array of [rule_id, weight] or [rule_id, weight, is_comp]
+            // failedRules: array of [rule_id, weight, is_compensated]
+
+            if ((!passedRules || passedRules.length === 0) && (!failedRules || failedRules.length === 0)) {
+                return '<div class="tree-empty">No rules found for this service.</div>';
+            }
+
+            let html = '';
+
+            // Render failed rules first (higher priority)
+            if (failedRules && failedRules.length > 0) {
+                failedRules.forEach(rule => {
+                    const ruleId = rule[0];
+                    const weight = rule[1];
+                    const isCompensated = rule[2] || false;
+                    const compensatedText = isCompensated ? ' (compensated)' : '';
+
+                    html += `
+                        <div class="tree-leaf">
+                            <span class="badge-fail">FAIL</span>
+                            <span style="margin-left: 8px;">${ruleId}${compensatedText}</span>
+                            <span class="tree-rule-weight">Weight: ${weight}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            // Render passed rules
+            if (passedRules && passedRules.length > 0) {
+                passedRules.forEach(rule => {
+                    const ruleId = rule[0];
+                    const weight = rule[1];
+
+                    html += `
+                        <div class="tree-leaf">
+                            <span class="badge-pass">PASS</span>
+                            <span style="margin-left: 8px;">${ruleId}</span>
+                            <span class="tree-rule-weight">Weight: ${weight}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            return html;
+        }
+
         function renderScoreTree(scoreId, scoreData) {
             const treeContainer = document.getElementById('scoreTree');
             const treeCard = document.getElementById('scoreTreeCard');
