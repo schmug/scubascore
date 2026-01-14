@@ -317,6 +317,33 @@
             }
         }
 
+        function renderServiceNode(scoreId, serviceName, serviceData) {
+            const passCount = serviceData.passed_count || (serviceData.passed ? serviceData.passed.length : 0);
+            const failCount = serviceData.failed_count || (serviceData.failed ? serviceData.failed.length : 0);
+            const serviceScore = serviceData.score !== null ? serviceData.score : 'N/A';
+
+            // Determine service health indicator
+            let indicatorClass = 'success';
+            if (failCount > 0) {
+                indicatorClass = serviceScore >= 80 ? 'warning' : 'error';
+            }
+
+            return `
+                <div class="tree-node" data-service="${serviceName}">
+                    <div class="tree-node-header" onclick="toggleTreeNode('service-${scoreId}-${serviceName}')">
+                        <span class="tree-expand-icon" id="icon-service-${scoreId}-${serviceName}">▶</span>
+                        <span class="service-indicator ${indicatorClass}"></span>
+                        <strong>${serviceName}</strong>
+                        <span class="tree-score">${serviceScore}</span>
+                        <span class="tree-counts">${passCount} passed, ${failCount} failed</span>
+                    </div>
+                    <div class="tree-node-children" id="children-service-${scoreId}-${serviceName}" data-loaded="false">
+                        <div class="tree-loading">Click to load rules...</div>
+                    </div>
+                </div>
+            `;
+        }
+
         function renderScoreTree(scoreId, scoreData) {
             const treeContainer = document.getElementById('scoreTree');
             const treeCard = document.getElementById('scoreTreeCard');
@@ -344,32 +371,9 @@
                     <div class="tree-node-children" id="children-root-${scoreId}">
             `;
 
-            // Render each service as a child node
+            // Render each service as a child node using helper function
             for (const [serviceName, serviceMetrics] of Object.entries(scoreData.per_service)) {
-                const passCount = serviceMetrics.passed_count || (serviceMetrics.passed ? serviceMetrics.passed.length : 0);
-                const failCount = serviceMetrics.failed_count || (serviceMetrics.failed ? serviceMetrics.failed.length : 0);
-                const serviceScore = serviceMetrics.score !== null ? serviceMetrics.score : 'N/A';
-
-                // Determine service health indicator
-                let indicatorClass = 'success';
-                if (failCount > 0) {
-                    indicatorClass = serviceScore >= 80 ? 'warning' : 'error';
-                }
-
-                html += `
-                    <div class="tree-node" data-service="${serviceName}">
-                        <div class="tree-node-header" onclick="toggleTreeNode('service-${scoreId}-${serviceName}')">
-                            <span class="tree-expand-icon" id="icon-service-${scoreId}-${serviceName}">▶</span>
-                            <span class="service-indicator ${indicatorClass}"></span>
-                            <strong>${serviceName}</strong>
-                            <span class="tree-score">${serviceScore}</span>
-                            <span class="tree-counts">${passCount} passed, ${failCount} failed</span>
-                        </div>
-                        <div class="tree-node-children" id="children-service-${scoreId}-${serviceName}" data-loaded="false">
-                            <div class="tree-loading">Click to load rules...</div>
-                        </div>
-                    </div>
-                `;
+                html += renderServiceNode(scoreId, serviceName, serviceMetrics);
             }
 
             html += `
