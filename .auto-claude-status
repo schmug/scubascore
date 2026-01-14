@@ -1,0 +1,25 @@
+{
+  "active": true,
+  "spec": "018-the-scores-need-to-be-a-tree-or-folder-navigation-",
+  "state": "building",
+  "subtasks": {
+    "completed": 1,
+    "total": 10,
+    "in_progress": 1,
+    "failed": 0
+  },
+  "phase": {
+    "current": "Tree CSS and Container",
+    "id": null,
+    "total": 2
+  },
+  "workers": {
+    "active": 0,
+    "max": 1
+  },
+  "session": {
+    "number": 2,
+    "started_at": "2026-01-13T22:26:36.327903"
+  },
+  "last_update": "2026-01-13T22:27:48.098024"
+}
