@@ -317,6 +317,69 @@
             }
         }
 
+        function renderScoreTree(scoreId, scoreData) {
+            const treeContainer = document.getElementById('scoreTree');
+            const treeCard = document.getElementById('scoreTreeCard');
+
+            if (!scoreData || scoreData.overall_score === null) {
+                treeContainer.innerHTML = '<div class="tree-empty">No scores loaded yet. Upload a JSON file to see the breakdown.</div>';
+                treeCard.style.display = 'none';
+                return;
+            }
+
+            treeCard.style.display = 'block';
+
+            // Determine overall health indicator
+            const totalFailed = Object.values(scoreData.per_service).reduce((sum, svc) => sum + (svc.failed_count || 0), 0);
+            const overallIndicatorClass = totalFailed === 0 ? 'success' : (scoreData.overall_score >= 80 ? 'warning' : 'error');
+
+            let html = `
+                <div class="tree-node" data-score-id="${scoreId}">
+                    <div class="tree-node-header" onclick="toggleTreeNode('root-${scoreId}')">
+                        <span class="tree-expand-icon" id="icon-root-${scoreId}">▶</span>
+                        <span class="service-indicator ${overallIndicatorClass}"></span>
+                        <strong>Overall Score</strong>
+                        <span class="tree-score">${scoreData.overall_score}</span>
+                    </div>
+                    <div class="tree-node-children" id="children-root-${scoreId}">
+            `;
+
+            // Render each service as a child node
+            for (const [serviceName, serviceMetrics] of Object.entries(scoreData.per_service)) {
+                const passCount = serviceMetrics.passed_count || (serviceMetrics.passed ? serviceMetrics.passed.length : 0);
+                const failCount = serviceMetrics.failed_count || (serviceMetrics.failed ? serviceMetrics.failed.length : 0);
+                const serviceScore = serviceMetrics.score !== null ? serviceMetrics.score : 'N/A';
+
+                // Determine service health indicator
+                let indicatorClass = 'success';
+                if (failCount > 0) {
+                    indicatorClass = serviceScore >= 80 ? 'warning' : 'error';
+                }
+
+                html += `
+                    <div class="tree-node" data-service="${serviceName}">
+                        <div class="tree-node-header" onclick="toggleTreeNode('service-${scoreId}-${serviceName}')">
+                            <span class="tree-expand-icon" id="icon-service-${scoreId}-${serviceName}">▶</span>
+                            <span class="service-indicator ${indicatorClass}"></span>
+                            <strong>${serviceName}</strong>
+                            <span class="tree-score">${serviceScore}</span>
+                            <span class="tree-counts">${passCount} passed, ${failCount} failed</span>
+                        </div>
+                        <div class="tree-node-children" id="children-service-${scoreId}-${serviceName}" data-loaded="false">
+                            <div class="tree-loading">Click to load rules...</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            treeContainer.innerHTML = html;
+        }
+
         function closeModal() {
             document.getElementById('detailModal').style.display = "none";
         }
