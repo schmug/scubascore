@@ -1,0 +1,34 @@
+{
+  "results": [
+    {
+      "rule_id": "gws.gmail.1",
+      "verdict": "PASS",
+      "service": "gmail",
+      "severity": "High"
+    },
+    {
+      "rule_id": "gws.gmail.2",
+      "verdict": "FAIL",
+      "service": "gmail",
+      "severity": "Critical"
+    },
+    {
+      "rule_id": "gws.drive.1",
+      "verdict": "PASS",
+      "service": "drive",
+      "severity": "Medium"
+    },
+    {
+      "rule_id": "gws.drive.2",
+      "verdict": "PASS",
+      "service": "drive",
+      "severity": "High"
+    },
+    {
+      "rule_id": "gws.calendar.1",
+      "verdict": "FAIL",
+      "service": "calendar",
+      "severity": "Medium"
+    }
+  ]
+}
