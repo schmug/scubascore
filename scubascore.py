@@ -303,15 +303,37 @@ def compute_scores(scuba_json, weights_map, service_weights, compensating):
             "failed_count": len(agg["failed"]),
         }
 
-    # Overall score as weighted mean of available services
+    # Overall score calculation: weighted mean of service scores
+    # -------------------------------------------------------------
+    # Computes a single overall security score by combining individual service scores
+    # using their relative importance weights.
+    #
+    # Formula: overall_score = Σ(service_weight × service_score) / Σ(service_weights)
+    #
+    # Where:
+    #   - service_weight: relative importance of each service (from service_weights.yaml)
+    #   - service_score: 0-100 percentage score for that service
+    #   - Σ(service_weights): sum of weights for services that have evaluated rules
+    #
+    # Example:
+    #   gmail:    score=80%, weight=0.20  → contributes 16.0 to numerator
+    #   drive:    score=90%, weight=0.20  → contributes 18.0 to numerator
+    #   common:   score=75%, weight=0.20  → contributes 15.0 to numerator
+    #   (other services not evaluated, excluded from calculation)
+    #   overall = (16.0 + 18.0 + 15.0) / (0.20 + 0.20 + 0.20) = 49.0 / 0.60 = 81.67%
+    #
+    # Notes:
+    #   - Only services with evaluated rules (score is not None) are included
+    #   - This produces a weighted mean, not a simple average
+    #   - If no services have scores, overall is None
     sw = (service_weights or {}).get("service_weights", service_weights) or {}
-    total_weight = 0.0
-    weighted_sum = 0.0
+    total_weight = 0.0      # Σ(service_weights) - denominator
+    weighted_sum = 0.0      # Σ(service_weight × service_score) - numerator
     for svc, w in sw.items():
         if svc in per_service_scores and per_service_scores[svc]["score"] is not None:
-            total_weight += float(w)
-            weighted_sum += float(w) * per_service_scores[svc]["score"]
-    overall = (weighted_sum / total_weight) if total_weight > 0 else None
+            total_weight += float(w)                                      # accumulate weights
+            weighted_sum += float(w) * per_service_scores[svc]["score"]   # accumulate weighted scores
+    overall = (weighted_sum / total_weight) if total_weight > 0 else None  # compute weighted mean
 
     results = {
         "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
