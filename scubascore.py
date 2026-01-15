@@ -15,6 +15,21 @@ Outputs:
   - <prefix>_scores.csv   (per-service table)
   - <prefix>_summary.html (quick executive view)
 
+Scoring Algorithm:
+  The scoring system applies a risk-based weighting model to compliance rule verdicts:
+
+  1. Rule Processing: Extract and normalize rule verdicts (PASS/FAIL/N/A/UNKNOWN)
+  2. Weight Assignment: Apply numeric weights based on severity/risk levels
+  3. Verdict Scoring:
+     - PASS: Full weight credit
+     - FAIL: Zero credit (or 50% if compensating control exists)
+     - N/A: Excluded from scoring
+     - UNKNOWN/ERROR: Tracked but not scored
+  4. Service Scores: (passed_weight / evaluated_weight) × 100
+  5. Overall Score: Weighted mean of service scores using service_weights
+
+  See compute_scores() function for detailed algorithm documentation.
+
 Notes:
 - The script is schema-tolerant. It looks for rule entries with fields like:
     rule_id / id, verdict / result, service, severity / priority (optional)
