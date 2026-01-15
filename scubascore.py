@@ -280,9 +280,18 @@ def compute_scores(scuba_json, weights_map, service_weights, compensating):
             unknown_or_na += 1
 
     # Compute service scores
+    # For each service, calculate the compliance score as a percentage:
+    # score = (passed_weight / evaluated_weight) * 100
+    #
+    # Where:
+    #   - passed_weight: sum of weights for rules that passed (or partial credit for compensating)
+    #   - evaluated_weight: sum of weights for all evaluated rules (PASS + FAIL, excluding N/A)
+    #
+    # Example: If a service has 80 passed_weight and 100 evaluated_weight, score = 80%
     per_service_scores = {}
     for svc, agg in per_service.items():
         if agg["W_eval"] > 0:
+            # Calculate percentage score: (passed_weight / evaluated_weight) * 100
             score = (agg["W_pass"] / agg["W_eval"]) * 100.0
         else:
             score = None  # no evaluated items
