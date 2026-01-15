@@ -244,16 +244,19 @@ def compute_scores(scuba_json, weights_map, service_weights, compensating):
         verdict = entry["verdict"]
         service = entry["service"] or "unspecified"
 
-        # Weight for this rule
+        # Weight Precedence: specific rule_id > prefix match (longest wins) > default (1.0)
+        # Step 1: Try exact rule_id match (highest precedence)
         W = weight_map.get(rule_id)
         if W is None and rule_id:
-            # Try prefix-based mapping e.g., map 'gws.common.*' by 'gws.common.'
+            # Step 2: Try prefix-based mapping (e.g., 'gws.common.' matches 'gws.common.rule1')
+            # If multiple prefixes match, use the longest one (most specific)
             best_prefix = ""
             for k in weight_map.keys():
                 if rule_id.startswith(k) and len(k) > len(best_prefix):
                     best_prefix = k
             W = weight_map.get(best_prefix, default_weight)
         if W is None:
+            # Step 3: Fallback to default weight (lowest precedence)
             W = default_weight
 
         if verdict == "PASS":
