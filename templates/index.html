@@ -213,6 +213,7 @@
                     const detailResponse = await fetch(`/score/${latestScore.id}`);
                     if (detailResponse.ok) {
                         const fullData = await detailResponse.json();
+                        displayLatest(fullData);
                         renderScoreTree(latestScore.id, fullData);
                     }
                 }
