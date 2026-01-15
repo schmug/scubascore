@@ -264,8 +264,12 @@ def compute_scores(scuba_json, weights_map, service_weights, compensating):
             per_service[service]["W_eval"] += W
             per_service[service]["passed"].append((rule_id, W))
         elif verdict == "FAIL":
-            # Compensating control => grant 50% credit
-            adjusted = 0.5 if rule_id in comp_map else 0.0
+            # Failed rules normally contribute 0% to passed_weight (full penalty).
+            # However, if the rule_id is listed in compensating.yaml, it receives
+            # 50% partial credit to acknowledge external mitigating controls
+            # (e.g., third-party DLP, network controls, manual processes).
+            # Both compensating and non-compensating failures add full weight to evaluated_weight.
+            adjusted = 0.5 if rule_id in comp_map else 0.0  # 50% credit if compensating, 0% otherwise
             per_service[service]["W_pass"] += W * adjusted
             per_service[service]["W_eval"] += W
             per_service[service]["failed"].append((rule_id, W, adjusted > 0))
