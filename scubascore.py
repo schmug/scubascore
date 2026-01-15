@@ -119,6 +119,113 @@ def normalize_rule(r, default_service=None):
     }
 
 def compute_scores(scuba_json, weights_map, service_weights, compensating):
+    """
+    Compute weighted SCuBA security compliance scores from ScubaGoggles JSON results.
+
+    This is the core scoring algorithm that transforms raw compliance data into quantified
+    risk scores. It applies a risk-based weighting model to rule pass/fail verdicts, accounts
+    for compensating controls, and produces both per-service and overall security scores.
+
+    Algorithm Overview:
+    -------------------
+    1. **Rule Processing**: Iterate through all compliance rules in the input JSON.
+       - Extract rule_id, verdict (PASS/FAIL/NA/UNKNOWN), service, and severity.
+       - Normalize verdicts to handle common variations (e.g., "PASSED" -> "PASS").
+       - Infer service from rule_id if not explicitly provided (e.g., "gws.gmail.*" -> "gmail").
+
+    2. **Weight Assignment**: Assign a numeric weight to each rule based on its severity/risk.
+       - Look up exact rule_id match in weights_map (e.g., "gws.gmail.dmarc_enforced" -> 5).
+       - If no exact match, use longest prefix match (e.g., "gws.common." -> 3).
+       - Default to 1.0 if no match found.
+
+    3. **Verdict Scoring**: Calculate contribution to service scores based on verdict.
+       - PASS: Add full weight to both passed_weight and evaluated_weight.
+       - FAIL: Add 0% to passed_weight, full weight to evaluated_weight.
+       - FAIL with compensating control: Add 50% of weight to passed_weight (partial credit).
+       - N/A: Skip rule entirely (not counted in score).
+       - UNKNOWN/ERROR: Track in data_quality metrics but skip scoring.
+
+    4. **Service Score Calculation**: For each service, compute percentage score.
+       - Formula: (passed_weight / evaluated_weight) * 100
+       - Example: If gmail has 80 passed_weight and 100 evaluated_weight -> 80% score.
+
+    5. **Overall Score Aggregation**: Combine service scores using service weights.
+       - Formula: Σ(service_score × service_weight) / Σ(service_weights)
+       - Example: gmail (80%, weight=0.20) + drive (90%, weight=0.20) + ...
+       - Only includes services that have evaluated rules.
+
+    Compensating Controls:
+    ----------------------
+    Rules listed in the compensating map receive partial credit even when they fail.
+    This acknowledges external mitigations (e.g., third-party DLP, network controls).
+    - Compensating FAIL contributes 50% of its weight to the passed_weight.
+    - Non-compensating FAIL contributes 0%.
+
+    Parameters:
+    -----------
+    scuba_json : dict or list
+        Raw ScubaGoggles JSON results. Can be a list of rules or nested structure.
+        The function is schema-tolerant and will search for rules under various keys
+        (e.g., "results", "rules", "checks", or nested under "services").
+
+    weights_map : dict or None
+        Mapping of rule IDs (or prefixes) to numeric weights.
+        Format: {"weights": {"gws.gmail.rule1": 5, "gws.common.": 3, ...}}
+        or bare dict: {"gws.gmail.rule1": 5, ...}
+        Supports prefix matching: "gws.common." matches all "gws.common.*" rules.
+
+    service_weights : dict or None
+        Mapping of service names to their relative importance (0.0-1.0).
+        Format: {"service_weights": {"gmail": 0.20, "drive": 0.20, ...}}
+        or bare dict: {"gmail": 0.20, ...}
+        Values typically sum to 1.0 but will be normalized automatically.
+
+    compensating : dict or None
+        Mapping of rule IDs that have compensating controls.
+        Format: {"compensating": {"rule_id1": true, "rule_id2": true, ...}}
+        or bare dict: {"rule_id1": true, ...}
+        Rules in this list get 50% credit when they fail.
+
+    Returns:
+    --------
+    dict
+        Comprehensive scoring results with the following structure:
+        {
+            "generated_at": str,              # ISO8601 timestamp
+            "overall_score": float or None,   # 0-100 percentage, weighted mean of services
+            "per_service": {
+                "service_name": {
+                    "score": float or None,           # 0-100 percentage for this service
+                    "evaluated_weight": float,        # Total weight of evaluated rules
+                    "passed_weight": float,           # Weight that passed (including partial)
+                    "passed_count": int,              # Number of rules that passed
+                    "failed_count": int               # Number of rules that failed
+                },
+                ...
+            },
+            "data_quality": {
+                "unknown_or_error_entries": int,  # Count of unparseable/unknown verdicts
+                "total_entries_seen": int         # Total rules processed
+            }
+        }
+
+    Examples:
+    ---------
+    >>> data = load_json("ScubaResults.json")
+    >>> weights = {"weights": {"gws.gmail.dmarc": 5, "gws.common.": 3}}
+    >>> svc_weights = {"service_weights": {"gmail": 0.3, "drive": 0.3, "common": 0.4}}
+    >>> compensating = {"compensating": {"gws.gmail.legacy_auth": True}}
+    >>> results = compute_scores(data, weights, svc_weights, compensating)
+    >>> print(results["overall_score"])
+    85.5
+
+    Notes:
+    ------
+    - All scores are rounded to 2 decimal places.
+    - Services with no evaluated rules will have score=None.
+    - Overall score is None if no services have valid scores.
+    - The function is designed to be robust against schema variations and missing fields.
+    """
     # Prepare weight lookups
     default_weight = 1.0
     comp = compensating or {}
