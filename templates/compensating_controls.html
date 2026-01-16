@@ -51,6 +51,10 @@
                 <p>Document alternative implementations that satisfy security requirements.</p>
             </div>
             <div style="display: flex; gap: 10px;">
+                <input type="file" id="importFileInput" accept=".yaml,.yml" style="display: none;">
+                <button class="btn-add" onclick="importControls()" style="background-color: #8b5cf6;">
+                    <span style="margin-right: 5px;">⬆</span> Import YAML
+                </button>
                 <button class="btn-add" onclick="exportControls()" style="background-color: #059669;">
                     <span style="margin-right: 5px;">⬇</span> Export YAML
                 </button>
@@ -368,6 +372,66 @@
         function exportControls() {
             // Trigger download of YAML file
             window.location.href = '/api/compensating-controls/export';
+        }
+
+        async function importControls() {
+            const fileInput = document.getElementById('importFileInput');
+            const status = document.getElementById('status');
+
+            // Trigger file input dialog
+            fileInput.value = '';
+            fileInput.onchange = async function() {
+                if (!fileInput.files.length) {
+                    return;
+                }
+
+                const file = fileInput.files[0];
+                status.innerHTML = '<div class="loading-spinner"></div>';
+
+                try {
+                    const yamlContent = await file.text();
+
+                    const response = await fetch('/api/compensating-controls/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ yaml_content: yamlContent })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Import failed');
+                    }
+
+                    const result = await response.json();
+
+                    let message = `<div class="success">Import successful! `;
+                    if (result.imported > 0) {
+                        message += `${result.imported} new control(s) added. `;
+                    }
+                    if (result.updated > 0) {
+                        message += `${result.updated} control(s) updated. `;
+                    }
+                    if (result.errors && result.errors.length > 0) {
+                        message += `<br>Errors: ${result.errors.join(', ')}`;
+                    }
+                    message += `</div>`;
+
+                    status.innerHTML = message;
+
+                    // Reload controls to show imported data
+                    loadControls();
+
+                    // Clear status after 5 seconds
+                    setTimeout(() => {
+                        status.innerHTML = '';
+                    }, 5000);
+
+                } catch (err) {
+                    status.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+                }
+            };
+
+            fileInput.click();
         }
 
         function closeModal() {

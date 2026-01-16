@@ -528,6 +528,79 @@ def export_compensating_controls():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/compensating-controls/import', methods=['POST'])
+def import_compensating_controls():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        yaml_content = data.get('yaml_content', '')
+        if not yaml_content:
+            return jsonify({"error": "No YAML content provided"}), 400
+
+        # Parse YAML
+        yaml_data = yaml.safe_load(yaml_content)
+        if not yaml_data or 'compensating' not in yaml_data:
+            return jsonify({"error": "Invalid YAML format. Expected 'compensating' key."}), 400
+
+        compensating = yaml_data['compensating']
+        if not isinstance(compensating, dict):
+            return jsonify({"error": "Invalid YAML format. 'compensating' must be a dictionary."}), 400
+
+        db = get_db()
+        cursor = db.cursor()
+
+        imported_count = 0
+        updated_count = 0
+        errors = []
+
+        for rule_id, control_data in compensating.items():
+            try:
+                if not isinstance(control_data, dict):
+                    errors.append(f"{rule_id}: Control data must be a dictionary")
+                    continue
+
+                rationale = control_data.get('rationale', '')
+                expires_at = control_data.get('expires', None)
+
+                # Check if control already exists
+                cursor.execute('SELECT id FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+                existing = cursor.fetchone()
+
+                if existing:
+                    # Update existing control
+                    cursor.execute('''
+                        UPDATE compensating_controls
+                        SET rationale = ?, expires_at = ?, modified_at = CURRENT_TIMESTAMP, modified_by = ?
+                        WHERE rule_id = ?
+                    ''', (rationale, expires_at, 'bulk-import', rule_id))
+                    updated_count += 1
+                else:
+                    # Insert new control
+                    cursor.execute('''
+                        INSERT INTO compensating_controls (rule_id, rationale, expires_at, created_by, created_at)
+                        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (rule_id, rationale, expires_at, 'bulk-import'))
+                    imported_count += 1
+
+            except Exception as e:
+                errors.append(f"{rule_id}: {str(e)}")
+
+        db.commit()
+
+        return jsonify({
+            "success": True,
+            "imported": imported_count,
+            "updated": updated_count,
+            "errors": errors
+        })
+
+    except yaml.YAMLError as e:
+        return jsonify({"error": f"YAML parsing error: {str(e)}"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
