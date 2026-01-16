@@ -9,9 +9,15 @@ from flask import Flask, request, jsonify, render_template, g, redirect, url_for
 import scubascore
 
 app = Flask(__name__)
-DB_NAME = "scubascore.db"
-AUTOLOAD_DIR = "autoload"
+
+# Configuration from environment variables with sensible defaults
+DB_NAME = os.getenv("DB_NAME", "scubascore.db")
+AUTOLOAD_DIR = os.getenv("AUTOLOAD_DIR", "autoload")
 PROCESSED_DIR = os.path.join(AUTOLOAD_DIR, "processed")
+WATCHER_INTERVAL = int(os.getenv("WATCHER_INTERVAL", "60"))
+FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
+FLASK_PORT = int(os.getenv("FLASK_PORT", "5000"))
+FLASK_DEBUG = os.getenv("FLASK_DEBUG", "True").lower() in ("true", "1", "yes")
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -130,8 +136,8 @@ def autoload_watcher():
                         shutil.move(filepath, os.path.join(PROCESSED_DIR, f"ERROR_{filename}"))
         except Exception as e:
             print(f"Watcher loop error: {e}")
-        
-        time.sleep(60)
+
+        time.sleep(WATCHER_INTERVAL)
 
 # Start watcher in background
 watcher_thread = threading.Thread(target=autoload_watcher, daemon=True)
@@ -142,6 +148,10 @@ watcher_thread.start()
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"}), 200
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -237,4 +247,4 @@ def webhook():
 if __name__ == '__main__':
     if not os.path.exists(DB_NAME):
         init_db()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=FLASK_DEBUG, host=FLASK_HOST, port=FLASK_PORT)

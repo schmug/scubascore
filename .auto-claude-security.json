@@ -168,7 +168,8 @@
     "cargo_aliases": [],
     "shell_scripts": []
   },
-  "project_dir": "/Users/cory/scubascore/.auto-claude/worktrees/tasks/018-the-scores-need-to-be-a-tree-or-folder-navigation-",
-  "created_at": "2026-01-13T22:27:09.136089",
-  "project_hash": "44e7dd6dcaccfd0c18be8f924762504c"
+  "project_dir": "/Users/cory/scubascore",
+  "created_at": "2026-01-13T22:11:55.671051",
+  "project_hash": "cb77375adc6265db8ffc648d5a1abf7b",
+  "inherited_from": "/Users/cory/scubascore"
 }

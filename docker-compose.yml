@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  scubascore:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scubascore:latest
+    container_name: scubascore
+    ports:
+      - "${PORT:-5000}:5000"
+    environment:
+      # Flask Configuration
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_HOST=${HOST:-0.0.0.0}
+      - FLASK_PORT=${PORT:-5000}
+      - FLASK_DEBUG=false
+
+      # Database Configuration
+      - DB_NAME=/app/data/${DATABASE_PATH:-scubascore.db}
+
+      # Autoload Directory
+      - AUTOLOAD_DIR=/app/autoload
+      - WATCHER_INTERVAL=${WATCHER_INTERVAL:-60}
+
+      # Gunicorn Configuration
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+
+      # Logging
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
+
+    volumes:
+      # Persistent data volume for SQLite database
+      - ./data:/app/data
+
+      # Persistent autoload directory for JSON file processing
+      - ./autoload:/app/autoload
+
+      # Mount YAML configuration files as read-only
+      - ./weights.yaml:/app/weights.yaml:ro
+      - ./service_weights.yaml:/app/service_weights.yaml:ro
+      - ./compensating.yaml:/app/compensating.yaml:ro
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    restart: unless-stopped
+
+    networks:
+      - scubascore-network
+
+networks:
+  scubascore-network:
+    driver: bridge

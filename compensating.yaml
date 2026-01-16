@@ -1,5 +1,5 @@
 # Mark rules that have a documented compensating control; grants 50% credit when failed.
-compensating: {}
+compensating:
   # gws.common.sso_configured:
   #   rationale: "IdP enforces phishing-resistant MFA for all admins"
   #   expires: "2026-06-30"

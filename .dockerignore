@@ -1,0 +1,95 @@
+# Python runtime files
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (keep README.txt)
+*.md
+!README.md
+GEMINI.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Auto-claude specific
+.auto-claude/
+.auto-claude-*
+.claude_settings.json
+
+# Local database files (will use mounted volume)
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker files (these stay in build context but listed for clarity)
+# Dockerfile
+# docker-compose.yml
+# .dockerignore
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Package manager files
+pip-log.txt
+pip-delete-this-directory.txt
