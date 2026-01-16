@@ -307,6 +307,27 @@ def get_profile(profile_name):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/compensating-controls', methods=['GET'])
+def get_compensating_controls():
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by FROM compensating_controls ORDER BY created_at DESC')
+    rows = cursor.fetchall()
+
+    controls = []
+    for row in rows:
+        controls.append({
+            "id": row["id"],
+            "rule_id": row["rule_id"],
+            "rationale": row["rationale"],
+            "expires_at": row["expires_at"],
+            "created_at": row["created_at"],
+            "created_by": row["created_by"],
+            "modified_at": row["modified_at"],
+            "modified_by": row["modified_by"]
+        })
+    return jsonify(controls)
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
