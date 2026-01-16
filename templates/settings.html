@@ -29,26 +29,60 @@
     {% endif %}
 
     <form method="POST">
+        <div class="card">
+            <h2>Service Weight Profile</h2>
+            <p>Select which service weight profile to use (GWS, M365, etc.)</p>
+            <select name="profile" onchange="switchProfile()" style="padding: 10px; font-size: 16px; border: 1px solid #d1d5db; border-radius: 4px;">
+                {% for profile in available_profiles %}
+                <option value="{{ profile }}" {% if profile == current_profile %}selected{% endif %}>{{ profile }}</option>
+                {% endfor %}
+            </select>
+            <div id="profileStatus" style="margin-top: 10px; color: #666;"></div>
+        </div>
         <div class="grid">
             <div class="card">
                 <h2>Rule Weights (weights.yaml)</h2>
                 <p>Define risk weights (1-5) for specific rules or prefixes.</p>
                 <textarea name="weights_yaml">{{ weights }}</textarea>
             </div>
-
+            
             <div class="card">
                 <h2>Service Weights (service_weights.yaml)</h2>
                 <p>Define the contribution of each service to the overall score.</p>
                 <textarea name="service_weights_yaml">{{ service_weights }}</textarea>
             </div>
-
-            <div class="card">
-                <h2>Compensating Controls (compensating.yaml)</h2>
-                <p>Define compensating controls that reduce risk scores for specific rules.</p>
-                <textarea name="compensating_yaml">{{ compensating }}</textarea>
-            </div>
         </div>
         <button type="submit">Save Configurations</button>
     </form>
+
+    <script>
+        async function switchProfile() {
+            const profileSelect = document.querySelector('select[name="profile"]');
+            const serviceWeightsTextarea = document.querySelector('textarea[name="service_weights_yaml"]');
+            const status = document.getElementById('profileStatus');
+            const profile = profileSelect.value;
+
+            status.textContent = 'Loading profile...';
+
+            try {
+                const response = await fetch(`/api/profiles/${profile}`);
+
+                if (!response.ok) throw new Error('Failed to load profile');
+
+                const data = await response.json();
+                serviceWeightsTextarea.value = data.service_weights;
+                status.textContent = 'Profile loaded successfully!';
+
+                setTimeout(() => {
+                    status.textContent = '';
+                }, 2000);
+
+            } catch (err) {
+                status.textContent = 'Error: ' + err.message;
+                status.style.color = 'red';
+                console.error(err);
+            }
+        }
+    </script>
 </body>
 </html>

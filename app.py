@@ -9,15 +9,9 @@ from flask import Flask, request, jsonify, render_template, g, redirect, url_for
 import scubascore
 
 app = Flask(__name__)
-
-# Configuration from environment variables with sensible defaults
-DB_NAME = os.getenv("DB_NAME", "scubascore.db")
-AUTOLOAD_DIR = os.getenv("AUTOLOAD_DIR", "autoload")
+DB_NAME = "scubascore.db"
+AUTOLOAD_DIR = "autoload"
 PROCESSED_DIR = os.path.join(AUTOLOAD_DIR, "processed")
-WATCHER_INTERVAL = int(os.getenv("WATCHER_INTERVAL", "60"))
-FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
-FLASK_PORT = int(os.getenv("FLASK_PORT", "5000"))
-FLASK_DEBUG = os.getenv("FLASK_DEBUG", "True").lower() in ("true", "1", "yes")
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -48,15 +42,54 @@ def init_db():
         db.commit()
 
 # --- Configuration Management ---
+def get_service_weights_filename(profile_name):
+    """Get the service weights filename for a given profile."""
+    if profile_name == "default":
+        return "service_weights.yaml"
+    return f"service_weights_{profile_name}.yaml"
+
+def get_available_profiles():
+    """Get list of available service weight profiles."""
+    profiles = ["default"]
+    try:
+        for filename in os.listdir('.'):
+            if filename.startswith("service_weights_") and filename.endswith(".yaml"):
+                # Extract profile name: service_weights_<profile>.yaml -> <profile>
+                profile_name = filename[len("service_weights_"):-len(".yaml")]
+                profiles.append(profile_name)
+    except Exception as e:
+        print(f"Warning: Error scanning for profiles: {e}")
+    return profiles
+
 def load_configs():
     try:
         w = scubascore.load_yaml("weights.yaml")
-        sw = scubascore.load_yaml("service_weights.yaml")
+        profile = get_current_profile()
+        sw_filename = get_service_weights_filename(profile)
+        sw = scubascore.load_yaml(sw_filename)
         c = scubascore.load_yaml("compensating.yaml")
         return w, sw, c
     except Exception as e:
         print(f"Warning: Config load failed: {e}")
         return {}, {}, {}
+
+def get_current_profile():
+    try:
+        profile_config = scubascore.load_yaml("profile_config.yaml")
+        return profile_config.get("current_profile", "default")
+    except Exception as e:
+        print(f"Warning: Profile config load failed: {e}")
+        return "default"
+
+def set_current_profile(profile_name):
+    try:
+        import yaml
+        with open("profile_config.yaml", "w") as f:
+            yaml.dump({"current_profile": profile_name}, f)
+        return True
+    except Exception as e:
+        print(f"Warning: Profile config save failed: {e}")
+        return False
 
 WEIGHTS, SERVICE_WEIGHTS, COMPENSATING = load_configs()
 
@@ -136,8 +169,8 @@ def autoload_watcher():
                         shutil.move(filepath, os.path.join(PROCESSED_DIR, f"ERROR_{filename}"))
         except Exception as e:
             print(f"Watcher loop error: {e}")
-
-        time.sleep(WATCHER_INTERVAL)
+        
+        time.sleep(60)
 
 # Start watcher in background
 watcher_thread = threading.Thread(target=autoload_watcher, daemon=True)
@@ -147,38 +180,29 @@ watcher_thread.start()
 
 @app.route('/')
 def index():
-    """
-    Serve the main dashboard page.
-
-    Returns:
-        Rendered index.html template showing the SCuBA score dashboard.
-    """
     return render_template('index.html')
-
-@app.route('/health')
-def health():
-    return jsonify({"status": "ok"}), 200
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
-    """
-    Manage scoring configuration (weights and service weights).
-
-    GET: Display current weights.yaml and service_weights.yaml content in editable form.
-    POST: Save updated configuration files and reload global config variables.
-
-    Returns:
-        GET: Rendered settings.html with current config content.
-        POST: Redirect to settings page on success, or error page on failure.
-    """
     if request.method == 'POST':
         try:
+            # Check if profile is being changed
+            new_profile = request.form.get('profile')
+            current_profile = get_current_profile()
+
+            if new_profile and new_profile != current_profile:
+                # Profile is being switched
+                set_current_profile(new_profile)
+                current_profile = new_profile
+
+            # Save weights.yaml
             with open("weights.yaml", "w") as f:
                 f.write(request.form['weights_yaml'])
-            with open("service_weights.yaml", "w") as f:
+
+            # Save to the appropriate service_weights file based on current profile
+            sw_filename = get_service_weights_filename(current_profile)
+            with open(sw_filename, "w") as f:
                 f.write(request.form['service_weights_yaml'])
-            with open("compensating.yaml", "w") as f:
-                f.write(request.form['compensating_yaml'])
 
             # Reload global configs
             global WEIGHTS, SERVICE_WEIGHTS, COMPENSATING
@@ -189,34 +213,31 @@ def settings():
             return render_template('settings.html', error=str(e))
 
     # GET
+    current_profile = get_current_profile()
+    available_profiles = get_available_profiles()
+
     try:
         with open("weights.yaml", "r") as f:
             w_content = f.read()
-        with open("service_weights.yaml", "r") as f:
+
+        # Load the service weights file for current profile
+        sw_filename = get_service_weights_filename(current_profile)
+        with open(sw_filename, "r") as f:
             sw_content = f.read()
-        with open("compensating.yaml", "r") as f:
-            c_content = f.read()
     except:
         w_content = ""
         sw_content = ""
-        c_content = ""
 
-    return render_template('settings.html', weights=w_content, service_weights=sw_content, compensating=c_content)
+    return render_template('settings.html',
+                          weights=w_content,
+                          service_weights=sw_content,
+                          current_profile=current_profile,
+                          available_profiles=available_profiles)
 
 @app.route('/score', methods=['GET', 'POST'])
 def score_endpoint():
-    """
-    Retrieve score history or submit new SCuBA results for scoring.
-
-    GET: Fetch all historical scores with timestamps, overall scores, service scores, and IDs.
-    POST: Process submitted SCuBA JSON data, compute scores, save to database, and return results.
-
-    Returns:
-        GET: JSON array of score history entries ordered by timestamp.
-        POST: JSON object with computed scores and top failures, or error with 400/500 status.
-    """
     db = get_db()
-
+    
     if request.method == 'GET':
         cursor = db.cursor()
         cursor.execute('SELECT id, timestamp, overall_score, service_scores, results_json FROM scores ORDER BY timestamp ASC')
@@ -254,16 +275,6 @@ def score_endpoint():
 
 @app.route('/score/<int:score_id>', methods=['GET'])
 def get_score_details(score_id):
-    """
-    Retrieve detailed results for a specific score by ID.
-
-    Args:
-        score_id: Database ID of the score record to retrieve.
-
-    Returns:
-        JSON object with full scoring results including per-service details and top failures,
-        or error message with 404 status if not found.
-    """
     db = get_db()
     cursor = db.cursor()
     cursor.execute('SELECT results_json FROM scores WHERE id = ?', (score_id,))
@@ -272,18 +283,20 @@ def get_score_details(score_id):
         return jsonify(json.loads(row['results_json']))
     return jsonify({"error": "Not found"}), 404
 
+@app.route('/api/profiles/<profile_name>', methods=['GET'])
+def get_profile(profile_name):
+    try:
+        sw_filename = get_service_weights_filename(profile_name)
+        with open(sw_filename, "r") as f:
+            service_weights_content = f.read()
+        return jsonify({"service_weights": service_weights_content})
+    except FileNotFoundError:
+        return jsonify({"error": "Profile not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """
-    Webhook endpoint for external systems to submit SCuBA results.
-
-    Accepts JSON SCuBA data, processes it, saves scores to database, and returns
-    a success status with the overall score. Designed for automated integrations.
-
-    Returns:
-        JSON object with status "success" and overall_score on success,
-        or error message with 400/500 status on failure.
-    """
     try:
         input_data = request.get_json()
         if not input_data:
@@ -298,4 +311,4 @@ def webhook():
 if __name__ == '__main__':
     if not os.path.exists(DB_NAME):
         init_db()
-    app.run(debug=FLASK_DEBUG, host=FLASK_HOST, port=FLASK_PORT)
+    app.run(debug=True, host='0.0.0.0', port=5000)

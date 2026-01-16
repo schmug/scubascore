@@ -1,7 +1,8 @@
 service_weights:
-  AAD: 0.25          # Azure AD / Entra ID - Identity is critical
-  Defender: 0.20     # Microsoft Defender - Security suite
-  EXO: 0.20          # Exchange Online - Email security
-  SharePoint: 0.15   # SharePoint - Data storage
-  Teams: 0.10        # Teams - Collaboration
-  PowerPlatform: 0.10 # Power Platform - Lower attack surface
+  exchange: 0.20
+  onedrive: 0.20
+  common: 0.20
+  sharepoint: 0.15
+  teams: 0.15
+  groups: 0.05
+  calendar: 0.05
