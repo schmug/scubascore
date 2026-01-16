@@ -307,26 +307,74 @@ def get_profile(profile_name):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/compensating-controls', methods=['GET'])
-def get_compensating_controls():
+@app.route('/api/compensating-controls', methods=['GET', 'POST'])
+def compensating_controls_endpoint():
     db = get_db()
-    cursor = db.cursor()
-    cursor.execute('SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by FROM compensating_controls ORDER BY created_at DESC')
-    rows = cursor.fetchall()
 
-    controls = []
-    for row in rows:
-        controls.append({
-            "id": row["id"],
-            "rule_id": row["rule_id"],
-            "rationale": row["rationale"],
-            "expires_at": row["expires_at"],
-            "created_at": row["created_at"],
-            "created_by": row["created_by"],
-            "modified_at": row["modified_at"],
-            "modified_by": row["modified_by"]
-        })
-    return jsonify(controls)
+    if request.method == 'GET':
+        cursor = db.cursor()
+        cursor.execute('SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by FROM compensating_controls ORDER BY created_at DESC')
+        rows = cursor.fetchall()
+
+        controls = []
+        for row in rows:
+            controls.append({
+                "id": row["id"],
+                "rule_id": row["rule_id"],
+                "rationale": row["rationale"],
+                "expires_at": row["expires_at"],
+                "created_at": row["created_at"],
+                "created_by": row["created_by"],
+                "modified_at": row["modified_at"],
+                "modified_by": row["modified_by"]
+            })
+        return jsonify(controls)
+
+    elif request.method == 'POST':
+        try:
+            input_data = request.get_json()
+            if not input_data:
+                return jsonify({"error": "No JSON data provided"}), 400
+
+            # Validate required fields
+            rule_id = input_data.get("rule_id")
+            if not rule_id:
+                return jsonify({"error": "rule_id is required"}), 400
+
+            rationale = input_data.get("rationale")
+            expires_at = input_data.get("expires_at")
+            created_by = input_data.get("created_by")
+
+            # Insert into database
+            cursor = db.cursor()
+            cursor.execute(
+                'INSERT INTO compensating_controls (rule_id, rationale, expires_at, created_by) VALUES (?, ?, ?, ?)',
+                (rule_id, rationale, expires_at, created_by)
+            )
+            db.commit()
+
+            # Get the created record
+            control_id = cursor.lastrowid
+            cursor.execute('SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by FROM compensating_controls WHERE id = ?', (control_id,))
+            row = cursor.fetchone()
+
+            created_control = {
+                "id": row["id"],
+                "rule_id": row["rule_id"],
+                "rationale": row["rationale"],
+                "expires_at": row["expires_at"],
+                "created_at": row["created_at"],
+                "created_by": row["created_by"],
+                "modified_at": row["modified_at"],
+                "modified_by": row["modified_by"]
+            }
+
+            return jsonify(created_control), 201
+
+        except sqlite3.IntegrityError:
+            return jsonify({"error": "A control with this rule_id already exists"}), 409
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
