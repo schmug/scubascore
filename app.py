@@ -376,6 +376,53 @@ def compensating_controls_endpoint():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+@app.route('/api/compensating-controls/<rule_id>', methods=['PUT'])
+def update_compensating_control(rule_id):
+    try:
+        db = get_db()
+        input_data = request.get_json()
+        if not input_data:
+            return jsonify({"error": "No JSON data provided"}), 400
+
+        # Get update fields
+        rationale = input_data.get("rationale")
+        expires_at = input_data.get("expires_at")
+        modified_by = input_data.get("modified_by")
+
+        # Check if control exists
+        cursor = db.cursor()
+        cursor.execute('SELECT id FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Control not found"}), 404
+
+        # Update the control
+        cursor.execute(
+            'UPDATE compensating_controls SET rationale = ?, expires_at = ?, modified_at = CURRENT_TIMESTAMP, modified_by = ? WHERE rule_id = ?',
+            (rationale, expires_at, modified_by, rule_id)
+        )
+        db.commit()
+
+        # Get the updated record
+        cursor.execute('SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+        row = cursor.fetchone()
+
+        updated_control = {
+            "id": row["id"],
+            "rule_id": row["rule_id"],
+            "rationale": row["rationale"],
+            "expires_at": row["expires_at"],
+            "created_at": row["created_at"],
+            "created_by": row["created_by"],
+            "modified_at": row["modified_at"],
+            "modified_by": row["modified_by"]
+        }
+
+        return jsonify(updated_control), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
