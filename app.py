@@ -39,6 +39,18 @@ def init_db():
                 results_json TEXT
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS compensating_controls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id TEXT UNIQUE NOT NULL,
+                rationale TEXT,
+                expires_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT,
+                modified_at DATETIME,
+                modified_by TEXT
+            )
+        ''')
         db.commit()
 
 # --- Configuration Management ---
