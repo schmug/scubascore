@@ -692,6 +692,33 @@ def webhook():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    import sys
+
+    # Initialize database if it doesn't exist
     if not os.path.exists(DB_NAME):
         init_db()
+
+    # Check for --migrate-only flag
+    migrate_only = '--migrate-only' in sys.argv
+
+    # Check if we should run migration on startup
+    should_migrate = False
+    with app.app_context():
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('SELECT COUNT(*) FROM compensating_controls')
+        count = cursor.fetchone()[0]
+
+        # If DB is empty and compensating.yaml exists, run migration
+        if count == 0 and os.path.exists('compensating.yaml'):
+            should_migrate = True
+
+    if should_migrate or migrate_only:
+        print("Running migration from compensating.yaml to database...")
+        migrate_compensating_yaml()
+        print("Migration completed")
+
+    if migrate_only:
+        sys.exit(0)
+
     app.run(debug=True, host='0.0.0.0', port=5000)
