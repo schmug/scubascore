@@ -71,7 +71,24 @@
         <div class="card">
             <h2>Latest Score Overview</h2>
             <div id="latestScore">
-                <p class="text-gray-500">No score calculated yet.</p>
+                <div style="text-align: center; padding: 20px 10px; color: #6b7280;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">📊</div>
+                    <h3 style="color: #1f2937; margin: 0 0 12px 0; font-size: 20px;">Welcome to SCuBA Score!</h3>
+                    <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; max-width: 400px; margin-left: auto; margin-right: auto;">
+                        Track your Microsoft 365 security compliance with automated scoring based on CISA's SCuBA baseline policies.
+                    </p>
+                    <div style="background-color: #f3f4f6; border-radius: 6px; padding: 16px; margin: 20px 0; text-align: left; max-width: 400px; margin-left: auto; margin-right: auto;">
+                        <div style="font-weight: 600; margin-bottom: 12px; color: #374151;">🚀 Getting Started</div>
+                        <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+                            <li>Run ScubaGoggles against your M365 tenant</li>
+                            <li>Upload the generated JSON file using the upload form ⬅️</li>
+                            <li>Review your security scores and top fixes</li>
+                        </ol>
+                    </div>
+                    <p style="font-size: 13px; color: #9ca3af; margin: 16px 0 0 0;">
+                        💡 After upload, you'll see overall scores, per-service breakdowns, and high-impact improvement recommendations.
+                    </p>
+                </div>
             </div>
         </div>
     </div>
@@ -196,6 +213,7 @@
                     const detailResponse = await fetch(`/score/${latestScore.id}`);
                     if (detailResponse.ok) {
                         const fullData = await detailResponse.json();
+                        displayLatest(fullData);
                         renderScoreTree(latestScore.id, fullData);
                     }
                 }
