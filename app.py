@@ -5,7 +5,8 @@ import os
 import threading
 import time
 import shutil
-from flask import Flask, request, jsonify, render_template, g, redirect, url_for
+from flask import Flask, request, jsonify, render_template, g, redirect, url_for, make_response
+import yaml
 import scubascore
 
 app = Flask(__name__)
@@ -483,6 +484,46 @@ def get_expiring_compensating_controls():
                 "modified_by": row["modified_by"]
             })
         return jsonify(controls)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/compensating-controls/export', methods=['GET'])
+def export_compensating_controls():
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('SELECT rule_id, rationale, expires_at FROM compensating_controls ORDER BY rule_id')
+        rows = cursor.fetchall()
+
+        # Build YAML structure matching compensating.yaml format
+        compensating_dict = {"compensating": {}}
+
+        for row in rows:
+            rule_id = row["rule_id"]
+            compensating_dict["compensating"][rule_id] = {}
+
+            if row["rationale"]:
+                compensating_dict["compensating"][rule_id]["rationale"] = row["rationale"]
+
+            if row["expires_at"]:
+                # Format the date as YYYY-MM-DD
+                expires_date = row["expires_at"]
+                if expires_date:
+                    # Handle both datetime strings and date-only strings
+                    if " " in expires_date:
+                        expires_date = expires_date.split(" ")[0]
+                    compensating_dict["compensating"][rule_id]["expires"] = expires_date
+
+        # Convert to YAML
+        yaml_content = yaml.dump(compensating_dict, default_flow_style=False, sort_keys=False)
+
+        # Create response with proper headers for download
+        response = make_response(yaml_content)
+        response.headers['Content-Type'] = 'application/x-yaml'
+        response.headers['Content-Disposition'] = 'attachment; filename=compensating.yaml'
+
+        return response
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -50,7 +50,12 @@
                 <h2>Manage Compensating Controls</h2>
                 <p>Document alternative implementations that satisfy security requirements.</p>
             </div>
-            <button class="btn-add" onclick="openAddModal()">+ Add Control</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-add" onclick="exportControls()" style="background-color: #059669;">
+                    <span style="margin-right: 5px;">⬇</span> Export YAML
+                </button>
+                <button class="btn-add" onclick="openAddModal()">+ Add Control</button>
+            </div>
         </div>
 
         <div id="status" style="margin-top: 10px;"></div>
@@ -358,6 +363,11 @@
             } catch (err) {
                 status.innerHTML = `<div class="error">Error: ${err.message}</div>`;
             }
+        }
+
+        function exportControls() {
+            // Trigger download of YAML file
+            window.location.href = '/api/compensating-controls/export';
         }
 
         function closeModal() {
