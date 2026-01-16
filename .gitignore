@@ -7,6 +7,15 @@ results/
 scubascore.db
 __pycache__/
 
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# QA test files (auto-generated)
+qa_*.py
+qa_*.yaml
+
 # Auto Claude data directory
 .auto-claude/
 .claude_settings.json
@@ -14,3 +23,9 @@ __pycache__/
 
 M365BaselineConformance_*/
 .auto-claude-security.json
+
+# Auto Claude generated files
+.auto-claude-status
+.worktrees/
+.security-key
+logs/security/
