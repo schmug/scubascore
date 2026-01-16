@@ -147,6 +147,12 @@ watcher_thread.start()
 
 @app.route('/')
 def index():
+    """
+    Serve the main dashboard page.
+
+    Returns:
+        Rendered index.html template showing the SCuBA score dashboard.
+    """
     return render_template('index.html')
 
 @app.route('/health')
@@ -155,6 +161,16 @@ def health():
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
+    """
+    Manage scoring configuration (weights and service weights).
+
+    GET: Display current weights.yaml and service_weights.yaml content in editable form.
+    POST: Save updated configuration files and reload global config variables.
+
+    Returns:
+        GET: Rendered settings.html with current config content.
+        POST: Redirect to settings page on success, or error page on failure.
+    """
     if request.method == 'POST':
         try:
             with open("weights.yaml", "w") as f:
@@ -184,8 +200,18 @@ def settings():
 
 @app.route('/score', methods=['GET', 'POST'])
 def score_endpoint():
+    """
+    Retrieve score history or submit new SCuBA results for scoring.
+
+    GET: Fetch all historical scores with timestamps, overall scores, service scores, and IDs.
+    POST: Process submitted SCuBA JSON data, compute scores, save to database, and return results.
+
+    Returns:
+        GET: JSON array of score history entries ordered by timestamp.
+        POST: JSON object with computed scores and top failures, or error with 400/500 status.
+    """
     db = get_db()
-    
+
     if request.method == 'GET':
         cursor = db.cursor()
         cursor.execute('SELECT id, timestamp, overall_score, service_scores, results_json FROM scores ORDER BY timestamp ASC')
@@ -223,6 +249,16 @@ def score_endpoint():
 
 @app.route('/score/<int:score_id>', methods=['GET'])
 def get_score_details(score_id):
+    """
+    Retrieve detailed results for a specific score by ID.
+
+    Args:
+        score_id: Database ID of the score record to retrieve.
+
+    Returns:
+        JSON object with full scoring results including per-service details and top failures,
+        or error message with 404 status if not found.
+    """
     db = get_db()
     cursor = db.cursor()
     cursor.execute('SELECT results_json FROM scores WHERE id = ?', (score_id,))
@@ -233,6 +269,16 @@ def get_score_details(score_id):
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    """
+    Webhook endpoint for external systems to submit SCuBA results.
+
+    Accepts JSON SCuBA data, processes it, saves scores to database, and returns
+    a success status with the overall score. Designed for automated integrations.
+
+    Returns:
+        JSON object with status "success" and overall_score on success,
+        or error message with 400/500 status on failure.
+    """
     try:
         input_data = request.get_json()
         if not input_data:
