@@ -130,6 +130,8 @@
     </div>
 
     <script>
+        let controlsData = [];
+
         // Load controls on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadControls();
@@ -149,6 +151,7 @@
                 }
 
                 const controls = await response.json();
+                controlsData = controls;
 
                 if (controls.length === 0) {
                     tableContainer.style.display = 'none';
@@ -256,15 +259,104 @@
             }
         }
 
-        function editControl(ruleId) {
-            // Placeholder for subtask-3-3
-            alert('Edit functionality will be implemented in subtask-3-3');
+        async function editControl(ruleId) {
+            const modal = document.getElementById('controlModal');
+            const title = document.getElementById('modalTitle');
+            const form = document.getElementById('controlForm');
+            const formStatus = document.getElementById('formStatus');
+
+            title.textContent = 'Edit Compensating Control';
+            modal.style.display = 'block';
+
+            const control = controlsData.find(c => c.rule_id === ruleId);
+            if (!control) {
+                formStatus.innerHTML = '<div class="error">Error: Control not found</div>';
+                return;
+            }
+
+            try {
+
+                document.getElementById('ruleId').value = control.rule_id;
+                document.getElementById('ruleId').disabled = true;
+                document.getElementById('rationale').value = control.rationale || '';
+                document.getElementById('expiresAt').value = control.expires_at || '';
+                document.getElementById('createdBy').value = control.created_by || '';
+
+                formStatus.innerHTML = '';
+
+                form.onsubmit = async function(event) {
+                    event.preventDefault();
+
+                    const saveButton = document.getElementById('saveButton');
+                    const formData = {
+                        rule_id: control.rule_id,
+                        rationale: form.rationale.value.trim(),
+                        expires_at: form.expires_at.value || null,
+                        created_by: form.created_by.value.trim()
+                    };
+
+                    saveButton.disabled = true;
+                    formStatus.innerHTML = '<div class="loading-spinner"></div>';
+
+                    try {
+                        const updateResponse = await fetch(`/api/compensating-controls/${control.rule_id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(formData)
+                        });
+
+                        if (!updateResponse.ok) {
+                            const errorText = await updateResponse.text();
+                            throw new Error(errorText || 'Failed to update control');
+                        }
+
+                        formStatus.innerHTML = '<div class="success">Control updated successfully!</div>';
+
+                        setTimeout(() => {
+                            closeModal();
+                            loadControls();
+                            form.onsubmit = saveControl;
+                        }, 1000);
+
+                    } catch (err) {
+                        formStatus.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+                    } finally {
+                        saveButton.disabled = false;
+                    }
+                };
+
+            } catch (err) {
+                formStatus.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+            }
         }
 
-        function deleteControl(ruleId) {
-            // Placeholder for subtask-3-3
-            if (confirm(`Are you sure you want to delete the compensating control for ${ruleId}?`)) {
-                alert('Delete functionality will be implemented in subtask-3-3');
+        async function deleteControl(ruleId) {
+            if (!confirm(`Are you sure you want to delete the compensating control for ${ruleId}?`)) {
+                return;
+            }
+
+            const status = document.getElementById('status');
+            status.innerHTML = '<div class="loading-spinner"></div>';
+
+            try {
+                const response = await fetch(`/api/compensating-controls/${ruleId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Failed to delete control');
+                }
+
+                status.innerHTML = '<div class="success">Control deleted successfully!</div>';
+
+                setTimeout(() => {
+                    status.innerHTML = '';
+                    loadControls();
+                }, 2000);
+
+            } catch (err) {
+                status.innerHTML = `<div class="error">Error: ${err.message}</div>`;
             }
         }
 
