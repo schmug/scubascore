@@ -423,6 +423,27 @@ def update_compensating_control(rule_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/compensating-controls/<rule_id>', methods=['DELETE'])
+def delete_compensating_control(rule_id):
+    try:
+        db = get_db()
+
+        # Check if control exists
+        cursor = db.cursor()
+        cursor.execute('SELECT id FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Control not found"}), 404
+
+        # Delete the control
+        cursor.execute('DELETE FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+        db.commit()
+
+        return jsonify({"message": "Control deleted successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
