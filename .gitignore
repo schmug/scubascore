@@ -3,8 +3,14 @@
 CLAUDE.md
 /tests
 results_*
+results/
 scubascore.db
 __pycache__/
 
 # Auto Claude data directory
 .auto-claude/
+.claude_settings.json
+.DS_Store
+
+M365BaselineConformance_*/
+.auto-claude-security.json

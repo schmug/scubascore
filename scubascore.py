@@ -26,7 +26,7 @@ import argparse, json, pathlib, sys, csv, datetime, re
 from collections import defaultdict
 
 def load_json(path):
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8-sig") as f:
         return json.load(f)
 
 def load_yaml(path, default=None):
@@ -77,6 +77,18 @@ def iter_rules(scuba_json):
     if isinstance(scuba_json, list):
         candidates = scuba_json
     elif isinstance(scuba_json, dict):
+        # M365 SCuBA format: {"Results": {"AAD": [{"Controls": [...]}], ...}}
+        results_obj = scuba_json.get("Results")
+        if isinstance(results_obj, dict):
+            for svc, groups in results_obj.items():
+                if isinstance(groups, list):
+                    for group in groups:
+                        controls = group.get("Controls") if isinstance(group, dict) else None
+                        if isinstance(controls, list):
+                            for ctrl in controls:
+                                yield normalize_rule(ctrl, default_service=svc)
+            return
+
         for k in ["results", "rules", "checks", "findings", "items"]:
             if isinstance(scuba_json.get(k), list):
                 candidates = scuba_json[k]
@@ -102,11 +114,11 @@ def iter_rules(scuba_json):
         yield normalize_rule(r)
 
 def normalize_rule(r, default_service=None):
-    # Extract identifiers
-    rule_id = r.get("rule_id") or r.get("id") or r.get("rule") or r.get("name")
-    verdict = normalize_verdict(r.get("verdict") or r.get("result") or r.get("status"))
+    # Extract identifiers (support M365 field names like "Control ID", "Result")
+    rule_id = r.get("rule_id") or r.get("Control ID") or r.get("id") or r.get("rule") or r.get("name")
+    verdict = normalize_verdict(r.get("verdict") or r.get("Result") or r.get("result") or r.get("status"))
     service = (r.get("service") or r.get("product") or r.get("category") or default_service)
-    severity = r.get("severity") or r.get("priority") or r.get("weight_class")
+    severity = r.get("severity") or r.get("Criticality") or r.get("priority") or r.get("weight_class")
 
     if not service:
         service = infer_service(rule_id)
