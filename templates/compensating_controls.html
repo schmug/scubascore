@@ -82,13 +82,49 @@
         </div>
     </div>
 
-    <!-- Modal (placeholder for subtask-3-2) -->
+    <!-- Modal -->
     <div id="controlModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
             <h2 id="modalTitle">Add Compensating Control</h2>
             <div id="modalBody">
-                <p>Modal form will be implemented in subtask-3-2</p>
+                <form id="controlForm" onsubmit="saveControl(event)">
+                    <div style="margin-bottom: 15px;">
+                        <label for="ruleId" style="display: block; margin-bottom: 5px; font-weight: bold;">Rule ID *</label>
+                        <input type="text" id="ruleId" name="rule_id" required
+                               style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;"
+                               placeholder="e.g., MS.AAD.1.1v1">
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <label for="rationale" style="display: block; margin-bottom: 5px; font-weight: bold;">Rationale *</label>
+                        <textarea id="rationale" name="rationale" required rows="4"
+                                  style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; font-family: inherit;"
+                                  placeholder="Explain why this compensating control satisfies the requirement..."></textarea>
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <label for="expiresAt" style="display: block; margin-bottom: 5px; font-weight: bold;">Expires At (Optional)</label>
+                        <input type="date" id="expiresAt" name="expires_at"
+                               style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+                        <small style="color: #6b7280;">Leave empty if this control does not expire</small>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label for="createdBy" style="display: block; margin-bottom: 5px; font-weight: bold;">Created By *</label>
+                        <input type="text" id="createdBy" name="created_by" required
+                               style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;"
+                               placeholder="Your name or email">
+                    </div>
+
+                    <div id="formStatus" style="margin-bottom: 15px;"></div>
+
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button type="button" onclick="closeModal()"
+                                style="background-color: #6b7280;">Cancel</button>
+                        <button type="submit" id="saveButton">Save Control</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -165,8 +201,59 @@
         function openAddModal() {
             const modal = document.getElementById('controlModal');
             const title = document.getElementById('modalTitle');
+            const form = document.getElementById('controlForm');
+            const formStatus = document.getElementById('formStatus');
+
             title.textContent = 'Add Compensating Control';
+            form.reset();
+            formStatus.innerHTML = '';
+
+            document.getElementById('ruleId').disabled = false;
+
             modal.style.display = 'block';
+        }
+
+        async function saveControl(event) {
+            event.preventDefault();
+
+            const form = event.target;
+            const saveButton = document.getElementById('saveButton');
+            const formStatus = document.getElementById('formStatus');
+
+            const formData = {
+                rule_id: form.rule_id.value.trim(),
+                rationale: form.rationale.value.trim(),
+                expires_at: form.expires_at.value || null,
+                created_by: form.created_by.value.trim()
+            };
+
+            saveButton.disabled = true;
+            formStatus.innerHTML = '<div class="loading-spinner"></div>';
+
+            try {
+                const response = await fetch('/api/compensating-controls', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Failed to save control');
+                }
+
+                formStatus.innerHTML = '<div class="success">Control saved successfully!</div>';
+
+                setTimeout(() => {
+                    closeModal();
+                    loadControls();
+                }, 1000);
+
+            } catch (err) {
+                formStatus.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+            } finally {
+                saveButton.disabled = false;
+            }
         }
 
         function editControl(ruleId) {
@@ -182,7 +269,13 @@
         }
 
         function closeModal() {
-            document.getElementById('controlModal').style.display = 'none';
+            const modal = document.getElementById('controlModal');
+            const form = document.getElementById('controlForm');
+            const formStatus = document.getElementById('formStatus');
+
+            modal.style.display = 'none';
+            form.reset();
+            formStatus.innerHTML = '';
         }
 
         // Close modal when clicking outside
