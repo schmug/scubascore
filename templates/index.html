@@ -17,6 +17,7 @@
         @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
         
         .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .nav-links { display: flex; gap: 20px; align-items: center; }
         .nav a { color: #2563eb; text-decoration: none; font-weight: bold; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -68,7 +69,10 @@
 <body>
     <div class="nav">
         <h1>SCuBA Score Dashboard</h1>
-        <a href="/settings">⚙ Settings</a>
+        <div class="nav-links">
+            <a href="/compensating-controls">🛡️ Compensating Controls</a>
+            <a href="/settings">⚙ Settings</a>
+        </div>
     </div>
     
     <div class="grid">
