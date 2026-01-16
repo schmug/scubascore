@@ -111,10 +111,10 @@ def save_score_to_db(results):
         db = get_db()
         overall = results.get("overall_score")
         per_service = results.get("per_service", {})
-        
+
         simple_service_scores = {
-            svc: data.get("score") 
-            for svc, data in per_service.items() 
+            svc: data.get("score")
+            for svc, data in per_service.items()
             if data.get("score") is not None
         }
 
@@ -125,11 +125,57 @@ def save_score_to_db(results):
         )
         db.commit()
 
+def load_compensating_from_db():
+    """Load compensating controls from database and return in YAML-compatible format."""
+    try:
+        with app.app_context():
+            db = get_db()
+            cursor = db.cursor()
+            cursor.execute('SELECT rule_id, rationale, expires_at FROM compensating_controls')
+            rows = cursor.fetchall()
+
+            compensating_dict = {}
+            for row in rows:
+                rule_id = row["rule_id"]
+                compensating_dict[rule_id] = {}
+
+                if row["rationale"]:
+                    compensating_dict[rule_id]["rationale"] = row["rationale"]
+
+                if row["expires_at"]:
+                    # Format the date as YYYY-MM-DD
+                    expires_date = row["expires_at"]
+                    if expires_date:
+                        # Handle both datetime strings and date-only strings
+                        if " " in expires_date:
+                            expires_date = expires_date.split(" ")[0]
+                        compensating_dict[rule_id]["expires"] = expires_date
+
+            return compensating_dict
+    except Exception as e:
+        print(f"Warning: Failed to load compensating controls from DB: {e}")
+        return {}
+
 def process_scuba_data(data):
     # Reload configs to ensure we use latest settings
     w, sw, c = load_configs()
+
+    # Load compensating controls from database and merge with YAML
+    db_compensating = load_compensating_from_db()
+    # Merge: DB takes precedence over YAML
+    # Ensure all values are valid dicts
+    if c is None:
+        c = {}
+    if db_compensating is None:
+        db_compensating = {}
+    yaml_compensating = c.get("compensating", {}) if isinstance(c, dict) else {}
+    if yaml_compensating is None:
+        yaml_compensating = {}
+    merged_compensating = {**yaml_compensating, **db_compensating}
+    c["compensating"] = merged_compensating
+
     results = scubascore.compute_scores(data, w, sw, c)
-    
+
     # Calculate Top Failures
     all_failures = []
     for svc, details in results.get("per_service", {}).items():
@@ -145,11 +191,11 @@ def process_scuba_data(data):
                 "is_compensated": is_compensated,
                 "effective_weight": effective_weight
             })
-    
+
     # Sort by effective weight descending
     all_failures.sort(key=lambda x: x["effective_weight"], reverse=True)
     results["top_failures"] = all_failures[:5]
-    
+
     return results
 
 # --- Background Watcher ---
