@@ -246,6 +246,10 @@ def settings():
                           current_profile=current_profile,
                           available_profiles=available_profiles)
 
+@app.route('/compensating-controls')
+def compensating_controls():
+    return render_template('compensating_controls.html')
+
 @app.route('/score', methods=['GET', 'POST'])
 def score_endpoint():
     db = get_db()

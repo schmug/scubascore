@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compensating Controls - SCuBA Score</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f9fafb; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1, h2 { color: #1f2937; margin-top: 0; }
+        button { background-color: #2563eb; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #1d4ed8; }
+        button:disabled { background-color: #9ca3af; cursor: not-allowed; opacity: 0.6; }
+        a { color: #2563eb; text-decoration: none; margin-bottom: 20px; display: inline-block; }
+        .success { color: green; margin-bottom: 10px; }
+        .error { color: red; margin-bottom: 10px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 14px; }
+        th { background: #f9fafb; }
+
+        .btn-add { margin-bottom: 15px; }
+        .btn-edit { background-color: #f59e0b; padding: 4px 8px; font-size: 12px; margin-right: 5px; }
+        .btn-edit:hover { background-color: #d97706; }
+        .btn-delete { background-color: #ef4444; padding: 4px 8px; font-size: 12px; }
+        .btn-delete:hover { background-color: #dc2626; }
+
+        .badge-expiring { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+        .badge-expired { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: #6b7280; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 5% auto; padding: 20px; border-radius: 8px; width: 80%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+        .close { float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+
+        /* Loading Spinner */
+        .loading-spinner { display: inline-block; width: 40px; height: 40px; border: 3px solid #f3f4f6; border-top: 3px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <a href="/">← Back to Dashboard</a>
+    <h1>Compensating Controls</h1>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h2>Manage Compensating Controls</h2>
+                <p>Document alternative implementations that satisfy security requirements.</p>
+            </div>
+            <button class="btn-add" onclick="openAddModal()">+ Add Control</button>
+        </div>
+
+        <div id="status" style="margin-top: 10px;"></div>
+
+        <div id="tableContainer">
+            <table id="controlsTable">
+                <thead>
+                    <tr>
+                        <th>Rule ID</th>
+                        <th>Rationale</th>
+                        <th>Expires At</th>
+                        <th>Created By</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="controlsBody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 20px;">
+                            <div class="loading-spinner"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <p>No compensating controls configured yet.</p>
+            <p>Click "Add Control" to document your first alternative implementation.</p>
+        </div>
+    </div>
+
+    <!-- Modal (placeholder for subtask-3-2) -->
+    <div id="controlModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">Add Compensating Control</h2>
+            <div id="modalBody">
+                <p>Modal form will be implemented in subtask-3-2</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load controls on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadControls();
+        });
+
+        async function loadControls() {
+            const tbody = document.getElementById('controlsBody');
+            const emptyState = document.getElementById('emptyState');
+            const tableContainer = document.getElementById('tableContainer');
+            const status = document.getElementById('status');
+
+            try {
+                const response = await fetch('/api/compensating-controls');
+
+                if (!response.ok) {
+                    throw new Error('Failed to load compensating controls');
+                }
+
+                const controls = await response.json();
+
+                if (controls.length === 0) {
+                    tableContainer.style.display = 'none';
+                    emptyState.style.display = 'block';
+                } else {
+                    tableContainer.style.display = 'block';
+                    emptyState.style.display = 'none';
+
+                    tbody.innerHTML = controls.map(control => {
+                        const expiresAt = control.expires_at || 'Never';
+                        const expirationBadge = getExpirationBadge(control.expires_at);
+
+                        return `
+                            <tr>
+                                <td><strong>${control.rule_id}</strong></td>
+                                <td>${control.rationale || 'N/A'}</td>
+                                <td>${expiresAt} ${expirationBadge}</td>
+                                <td>${control.created_by || 'Unknown'}</td>
+                                <td>
+                                    <button class="btn-edit" onclick="editControl('${control.rule_id}')">Edit</button>
+                                    <button class="btn-delete" onclick="deleteControl('${control.rule_id}')">Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+            } catch (err) {
+                status.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444;">Failed to load controls</td></tr>';
+            }
+        }
+
+        function getExpirationBadge(expiresAt) {
+            if (!expiresAt) return '';
+
+            const expirationDate = new Date(expiresAt);
+            const today = new Date();
+            const daysUntilExpiration = Math.ceil((expirationDate - today) / (1000 * 60 * 60 * 24));
+
+            if (daysUntilExpiration < 0) {
+                return '<span class="badge-expired">EXPIRED</span>';
+            } else if (daysUntilExpiration <= 30) {
+                return '<span class="badge-expiring">EXPIRING SOON</span>';
+            }
+
+            return '';
+        }
+
+        function openAddModal() {
+            const modal = document.getElementById('controlModal');
+            const title = document.getElementById('modalTitle');
+            title.textContent = 'Add Compensating Control';
+            modal.style.display = 'block';
+        }
+
+        function editControl(ruleId) {
+            // Placeholder for subtask-3-3
+            alert('Edit functionality will be implemented in subtask-3-3');
+        }
+
+        function deleteControl(ruleId) {
+            // Placeholder for subtask-3-3
+            if (confirm(`Are you sure you want to delete the compensating control for ${ruleId}?`)) {
+                alert('Delete functionality will be implemented in subtask-3-3');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('controlModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('controlModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

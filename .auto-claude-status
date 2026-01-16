@@ -1,25 +1,25 @@
 {
   "active": true,
-  "spec": "014-add-service-weight-profile-switching",
+  "spec": "004-enhanced-compensating-controls-ui",
   "state": "building",
   "subtasks": {
     "completed": 6,
-    "total": 7,
+    "total": 18,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Integration Testing",
+    "current": "Compensating Controls UI",
     "id": null,
-    "total": 1
+    "total": 4
   },
   "workers": {
     "active": 0,
     "max": 1
   },
   "session": {
-    "number": 9,
-    "started_at": "2026-01-14T21:45:21.388942"
+    "number": 8,
+    "started_at": "2026-01-16T07:27:22.832867"
   },
-  "last_update": "2026-01-14T22:02:21.909533"
+  "last_update": "2026-01-16T07:44:21.648200"
 }
