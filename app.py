@@ -444,6 +444,45 @@ def delete_compensating_control(rule_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/compensating-controls/expiring', methods=['GET'])
+def get_expiring_compensating_controls():
+    try:
+        db = get_db()
+
+        # Get days parameter from query string, default to 30
+        days = request.args.get('days', default=30, type=int)
+
+        # Calculate the expiration threshold date
+        threshold_date = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+
+        # Query for controls expiring within the specified days
+        cursor = db.cursor()
+        cursor.execute('''
+            SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by
+            FROM compensating_controls
+            WHERE expires_at IS NOT NULL
+            AND expires_at <= ?
+            ORDER BY expires_at ASC
+        ''', (threshold_date,))
+        rows = cursor.fetchall()
+
+        controls = []
+        for row in rows:
+            controls.append({
+                "id": row["id"],
+                "rule_id": row["rule_id"],
+                "rationale": row["rationale"],
+                "expires_at": row["expires_at"],
+                "created_at": row["created_at"],
+                "created_by": row["created_by"],
+                "modified_at": row["modified_at"],
+                "modified_by": row["modified_by"]
+            })
+        return jsonify(controls)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
