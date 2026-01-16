@@ -25,6 +25,7 @@
         .badge-fail { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
         .badge-pass { background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
         .badge-compensated { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 12px; cursor: help; }
+        .badge-warning { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
 
         /* Tooltip */
         .tooltip { position: relative; display: inline-block; }
@@ -97,6 +98,15 @@
         </table>
     </div>
 
+    <div class="card" id="expiringControlsCard" style="display:none;">
+        <h2>⚠️ Expiring Compensating Controls</h2>
+        <p><span id="expiringCount" class="badge-warning">0</span> compensating controls are expiring within the next 30 days. <a href="/compensating-controls">Manage controls</a></p>
+        <table>
+            <thead><tr><th>Rule ID</th><th>Expires At</th><th>Rationale</th></tr></thead>
+            <tbody id="expiringControlsBody"></tbody>
+        </table>
+    </div>
+
     <div class="card" id="scoreTreeCard" style="display:none;">
         <h2>Score Breakdown</h2>
         <p>Explore scores by service and rule. Click to expand.</p>
@@ -155,6 +165,7 @@
 
                 displayLatest(result);
                 displayTopFailures(result.top_failures);
+                displayExpiringControls();
                 renderScoreTree(result.id, result);
                 await loadHistory();
 
@@ -182,12 +193,12 @@
         function displayTopFailures(failures) {
             const card = document.getElementById('topFailuresCard');
             const tbody = document.getElementById('topFailuresBody');
-            
+
             if (!failures || failures.length === 0) {
                 card.style.display = 'none';
                 return;
             }
-            
+
             card.style.display = 'block';
             tbody.innerHTML = failures.map(f => {
                 const compensatedCell = f.is_compensated
@@ -202,6 +213,44 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        async function displayExpiringControls() {
+            const card = document.getElementById('expiringControlsCard');
+            const tbody = document.getElementById('expiringControlsBody');
+            const countBadge = document.getElementById('expiringCount');
+
+            try {
+                const response = await fetch('/api/compensating-controls/expiring?days=30');
+                if (!response.ok) {
+                    card.style.display = 'none';
+                    return;
+                }
+
+                const controls = await response.json();
+
+                if (!controls || controls.length === 0) {
+                    card.style.display = 'none';
+                    return;
+                }
+
+                card.style.display = 'block';
+                countBadge.textContent = controls.length;
+
+                tbody.innerHTML = controls.map(c => {
+                    const expiresAt = c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'N/A';
+                    const rationale = c.rationale || 'No rationale provided';
+                    return `
+                        <tr>
+                            <td>${c.rule_id}</td>
+                            <td>${expiresAt}</td>
+                            <td>${rationale}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                card.style.display = 'none';
+            }
         }
 
         async function loadHistory() {
@@ -661,6 +710,7 @@
         // Load history on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadHistory();
+            displayExpiringControls();
         });
     </script>
 </body>
