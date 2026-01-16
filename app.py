@@ -5,7 +5,8 @@ import os
 import threading
 import time
 import shutil
-from flask import Flask, request, jsonify, render_template, g, redirect, url_for
+from flask import Flask, request, jsonify, render_template, g, redirect, url_for, make_response
+import yaml
 import scubascore
 
 app = Flask(__name__)
@@ -39,7 +40,50 @@ def init_db():
                 results_json TEXT
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS compensating_controls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id TEXT UNIQUE NOT NULL,
+                rationale TEXT,
+                expires_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT,
+                modified_at DATETIME,
+                modified_by TEXT
+            )
+        ''')
         db.commit()
+
+def migrate_compensating_yaml():
+    """Migrate compensating controls from compensating.yaml to database."""
+    try:
+        with app.app_context():
+            c = scubascore.load_yaml("compensating.yaml")
+            if not c or "compensating" not in c:
+                return
+
+            compensating_rules = c.get("compensating", {})
+            if not compensating_rules:
+                return
+
+            db = get_db()
+            cursor = db.cursor()
+
+            for rule_id, rule_data in compensating_rules.items():
+                if not isinstance(rule_data, dict):
+                    continue
+
+                rationale = rule_data.get("rationale")
+                expires = rule_data.get("expires")
+
+                cursor.execute(
+                    'INSERT OR IGNORE INTO compensating_controls (rule_id, rationale, expires_at) VALUES (?, ?, ?)',
+                    (rule_id, rationale, expires)
+                )
+
+            db.commit()
+    except Exception as e:
+        print(f"Warning: Migration failed: {e}")
 
 # --- Configuration Management ---
 def get_service_weights_filename(profile_name):
@@ -98,10 +142,10 @@ def save_score_to_db(results):
         db = get_db()
         overall = results.get("overall_score")
         per_service = results.get("per_service", {})
-        
+
         simple_service_scores = {
-            svc: data.get("score") 
-            for svc, data in per_service.items() 
+            svc: data.get("score")
+            for svc, data in per_service.items()
             if data.get("score") is not None
         }
 
@@ -112,11 +156,57 @@ def save_score_to_db(results):
         )
         db.commit()
 
+def load_compensating_from_db():
+    """Load compensating controls from database and return in YAML-compatible format."""
+    try:
+        with app.app_context():
+            db = get_db()
+            cursor = db.cursor()
+            cursor.execute('SELECT rule_id, rationale, expires_at FROM compensating_controls')
+            rows = cursor.fetchall()
+
+            compensating_dict = {}
+            for row in rows:
+                rule_id = row["rule_id"]
+                compensating_dict[rule_id] = {}
+
+                if row["rationale"]:
+                    compensating_dict[rule_id]["rationale"] = row["rationale"]
+
+                if row["expires_at"]:
+                    # Format the date as YYYY-MM-DD
+                    expires_date = row["expires_at"]
+                    if expires_date:
+                        # Handle both datetime strings and date-only strings
+                        if " " in expires_date:
+                            expires_date = expires_date.split(" ")[0]
+                        compensating_dict[rule_id]["expires"] = expires_date
+
+            return compensating_dict
+    except Exception as e:
+        print(f"Warning: Failed to load compensating controls from DB: {e}")
+        return {}
+
 def process_scuba_data(data):
     # Reload configs to ensure we use latest settings
     w, sw, c = load_configs()
+
+    # Load compensating controls from database and merge with YAML
+    db_compensating = load_compensating_from_db()
+    # Merge: DB takes precedence over YAML
+    # Ensure all values are valid dicts
+    if c is None:
+        c = {}
+    if db_compensating is None:
+        db_compensating = {}
+    yaml_compensating = c.get("compensating", {}) if isinstance(c, dict) else {}
+    if yaml_compensating is None:
+        yaml_compensating = {}
+    merged_compensating = {**yaml_compensating, **db_compensating}
+    c["compensating"] = merged_compensating
+
     results = scubascore.compute_scores(data, w, sw, c)
-    
+
     # Calculate Top Failures
     all_failures = []
     for svc, details in results.get("per_service", {}).items():
@@ -132,11 +222,11 @@ def process_scuba_data(data):
                 "is_compensated": is_compensated,
                 "effective_weight": effective_weight
             })
-    
+
     # Sort by effective weight descending
     all_failures.sort(key=lambda x: x["effective_weight"], reverse=True)
     results["top_failures"] = all_failures[:5]
-    
+
     return results
 
 # --- Background Watcher ---
@@ -234,6 +324,10 @@ def settings():
                           current_profile=current_profile,
                           available_profiles=available_profiles)
 
+@app.route('/compensating-controls')
+def compensating_controls():
+    return render_template('compensating_controls.html')
+
 @app.route('/score', methods=['GET', 'POST'])
 def score_endpoint():
     db = get_db()
@@ -295,6 +389,295 @@ def get_profile(profile_name):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/compensating-controls', methods=['GET', 'POST'])
+def compensating_controls_endpoint():
+    db = get_db()
+
+    if request.method == 'GET':
+        cursor = db.cursor()
+        cursor.execute('SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by FROM compensating_controls ORDER BY created_at DESC')
+        rows = cursor.fetchall()
+
+        controls = []
+        for row in rows:
+            controls.append({
+                "id": row["id"],
+                "rule_id": row["rule_id"],
+                "rationale": row["rationale"],
+                "expires_at": row["expires_at"],
+                "created_at": row["created_at"],
+                "created_by": row["created_by"],
+                "modified_at": row["modified_at"],
+                "modified_by": row["modified_by"]
+            })
+        return jsonify(controls)
+
+    elif request.method == 'POST':
+        try:
+            input_data = request.get_json()
+            if not input_data:
+                return jsonify({"error": "No JSON data provided"}), 400
+
+            # Validate required fields
+            rule_id = input_data.get("rule_id")
+            if not rule_id:
+                return jsonify({"error": "rule_id is required"}), 400
+
+            rationale = input_data.get("rationale")
+            expires_at = input_data.get("expires_at")
+            created_by = input_data.get("created_by")
+
+            # Insert into database
+            cursor = db.cursor()
+            cursor.execute(
+                'INSERT INTO compensating_controls (rule_id, rationale, expires_at, created_by) VALUES (?, ?, ?, ?)',
+                (rule_id, rationale, expires_at, created_by)
+            )
+            db.commit()
+
+            # Get the created record
+            control_id = cursor.lastrowid
+            cursor.execute('SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by FROM compensating_controls WHERE id = ?', (control_id,))
+            row = cursor.fetchone()
+
+            created_control = {
+                "id": row["id"],
+                "rule_id": row["rule_id"],
+                "rationale": row["rationale"],
+                "expires_at": row["expires_at"],
+                "created_at": row["created_at"],
+                "created_by": row["created_by"],
+                "modified_at": row["modified_at"],
+                "modified_by": row["modified_by"]
+            }
+
+            return jsonify(created_control), 201
+
+        except sqlite3.IntegrityError:
+            return jsonify({"error": "A control with this rule_id already exists"}), 409
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+@app.route('/api/compensating-controls/<rule_id>', methods=['PUT'])
+def update_compensating_control(rule_id):
+    try:
+        db = get_db()
+        input_data = request.get_json()
+        if not input_data:
+            return jsonify({"error": "No JSON data provided"}), 400
+
+        # Get update fields
+        rationale = input_data.get("rationale")
+        expires_at = input_data.get("expires_at")
+        modified_by = input_data.get("modified_by")
+
+        # Check if control exists
+        cursor = db.cursor()
+        cursor.execute('SELECT id FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Control not found"}), 404
+
+        # Update the control
+        cursor.execute(
+            'UPDATE compensating_controls SET rationale = ?, expires_at = ?, modified_at = CURRENT_TIMESTAMP, modified_by = ? WHERE rule_id = ?',
+            (rationale, expires_at, modified_by, rule_id)
+        )
+        db.commit()
+
+        # Get the updated record
+        cursor.execute('SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+        row = cursor.fetchone()
+
+        updated_control = {
+            "id": row["id"],
+            "rule_id": row["rule_id"],
+            "rationale": row["rationale"],
+            "expires_at": row["expires_at"],
+            "created_at": row["created_at"],
+            "created_by": row["created_by"],
+            "modified_at": row["modified_at"],
+            "modified_by": row["modified_by"]
+        }
+
+        return jsonify(updated_control), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/compensating-controls/<rule_id>', methods=['DELETE'])
+def delete_compensating_control(rule_id):
+    try:
+        db = get_db()
+
+        # Check if control exists
+        cursor = db.cursor()
+        cursor.execute('SELECT id FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Control not found"}), 404
+
+        # Delete the control
+        cursor.execute('DELETE FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+        db.commit()
+
+        return jsonify({"message": "Control deleted successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/compensating-controls/expiring', methods=['GET'])
+def get_expiring_compensating_controls():
+    try:
+        db = get_db()
+
+        # Get days parameter from query string, default to 30
+        days = request.args.get('days', default=30, type=int)
+
+        # Calculate the expiration threshold date
+        threshold_date = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+
+        # Query for controls expiring within the specified days
+        cursor = db.cursor()
+        cursor.execute('''
+            SELECT id, rule_id, rationale, expires_at, created_at, created_by, modified_at, modified_by
+            FROM compensating_controls
+            WHERE expires_at IS NOT NULL
+            AND expires_at <= ?
+            ORDER BY expires_at ASC
+        ''', (threshold_date,))
+        rows = cursor.fetchall()
+
+        controls = []
+        for row in rows:
+            controls.append({
+                "id": row["id"],
+                "rule_id": row["rule_id"],
+                "rationale": row["rationale"],
+                "expires_at": row["expires_at"],
+                "created_at": row["created_at"],
+                "created_by": row["created_by"],
+                "modified_at": row["modified_at"],
+                "modified_by": row["modified_by"]
+            })
+        return jsonify(controls)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/compensating-controls/export', methods=['GET'])
+def export_compensating_controls():
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('SELECT rule_id, rationale, expires_at FROM compensating_controls ORDER BY rule_id')
+        rows = cursor.fetchall()
+
+        # Build YAML structure matching compensating.yaml format
+        compensating_dict = {"compensating": {}}
+
+        for row in rows:
+            rule_id = row["rule_id"]
+            compensating_dict["compensating"][rule_id] = {}
+
+            if row["rationale"]:
+                compensating_dict["compensating"][rule_id]["rationale"] = row["rationale"]
+
+            if row["expires_at"]:
+                # Format the date as YYYY-MM-DD
+                expires_date = row["expires_at"]
+                if expires_date:
+                    # Handle both datetime strings and date-only strings
+                    if " " in expires_date:
+                        expires_date = expires_date.split(" ")[0]
+                    compensating_dict["compensating"][rule_id]["expires"] = expires_date
+
+        # Convert to YAML
+        yaml_content = yaml.dump(compensating_dict, default_flow_style=False, sort_keys=False)
+
+        # Create response with proper headers for download
+        response = make_response(yaml_content)
+        response.headers['Content-Type'] = 'application/x-yaml'
+        response.headers['Content-Disposition'] = 'attachment; filename=compensating.yaml'
+
+        return response
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/compensating-controls/import', methods=['POST'])
+def import_compensating_controls():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        yaml_content = data.get('yaml_content', '')
+        if not yaml_content:
+            return jsonify({"error": "No YAML content provided"}), 400
+
+        # Parse YAML
+        yaml_data = yaml.safe_load(yaml_content)
+        if not yaml_data or 'compensating' not in yaml_data:
+            return jsonify({"error": "Invalid YAML format. Expected 'compensating' key."}), 400
+
+        compensating = yaml_data['compensating']
+        if not isinstance(compensating, dict):
+            return jsonify({"error": "Invalid YAML format. 'compensating' must be a dictionary."}), 400
+
+        db = get_db()
+        cursor = db.cursor()
+
+        imported_count = 0
+        updated_count = 0
+        errors = []
+
+        for rule_id, control_data in compensating.items():
+            try:
+                if not isinstance(control_data, dict):
+                    errors.append(f"{rule_id}: Control data must be a dictionary")
+                    continue
+
+                rationale = control_data.get('rationale', '')
+                expires_at = control_data.get('expires', None)
+
+                # Check if control already exists
+                cursor.execute('SELECT id FROM compensating_controls WHERE rule_id = ?', (rule_id,))
+                existing = cursor.fetchone()
+
+                if existing:
+                    # Update existing control
+                    cursor.execute('''
+                        UPDATE compensating_controls
+                        SET rationale = ?, expires_at = ?, modified_at = CURRENT_TIMESTAMP, modified_by = ?
+                        WHERE rule_id = ?
+                    ''', (rationale, expires_at, 'bulk-import', rule_id))
+                    updated_count += 1
+                else:
+                    # Insert new control
+                    cursor.execute('''
+                        INSERT INTO compensating_controls (rule_id, rationale, expires_at, created_by, created_at)
+                        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (rule_id, rationale, expires_at, 'bulk-import'))
+                    imported_count += 1
+
+            except Exception as e:
+                errors.append(f"{rule_id}: {str(e)}")
+
+        db.commit()
+
+        return jsonify({
+            "success": True,
+            "imported": imported_count,
+            "updated": updated_count,
+            "errors": errors
+        })
+
+    except yaml.YAMLError as e:
+        return jsonify({"error": f"YAML parsing error: {str(e)}"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -309,6 +692,33 @@ def webhook():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    import sys
+
+    # Initialize database if it doesn't exist
     if not os.path.exists(DB_NAME):
         init_db()
+
+    # Check for --migrate-only flag
+    migrate_only = '--migrate-only' in sys.argv
+
+    # Check if we should run migration on startup
+    should_migrate = False
+    with app.app_context():
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('SELECT COUNT(*) FROM compensating_controls')
+        count = cursor.fetchone()[0]
+
+        # If DB is empty and compensating.yaml exists, run migration
+        if count == 0 and os.path.exists('compensating.yaml'):
+            should_migrate = True
+
+    if should_migrate or migrate_only:
+        print("Running migration from compensating.yaml to database...")
+        migrate_compensating_yaml()
+        print("Migration completed")
+
+    if migrate_only:
+        sys.exit(0)
+
     app.run(debug=True, host='0.0.0.0', port=5000)

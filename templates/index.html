@@ -17,6 +17,7 @@
         @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
         
         .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .nav-links { display: flex; gap: 20px; align-items: center; }
         .nav a { color: #2563eb; text-decoration: none; font-weight: bold; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -24,7 +25,15 @@
         th { background: #f9fafb; }
         .badge-fail { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
         .badge-pass { background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-        
+        .badge-compensated { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 12px; cursor: help; }
+        .badge-warning { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        /* Tooltip */
+        .tooltip { position: relative; display: inline-block; }
+        .tooltip .tooltiptext { visibility: hidden; width: 300px; background-color: #374151; color: white; text-align: left; border-radius: 6px; padding: 8px 10px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -150px; opacity: 0; transition: opacity 0.3s; font-size: 12px; line-height: 1.4; }
+        .tooltip .tooltiptext::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #374151 transparent transparent transparent; }
+        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+
         /* Modal */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: white; margin: 5% auto; padding: 20px; border-radius: 8px; width: 80%; max-height: 80vh; overflow-y: auto; }
@@ -60,7 +69,10 @@
 <body>
     <div class="nav">
         <h1>SCuBA Score Dashboard</h1>
-        <a href="/settings">⚙ Settings</a>
+        <div class="nav-links">
+            <a href="/compensating-controls">🛡️ Compensating Controls</a>
+            <a href="/settings">⚙ Settings</a>
+        </div>
     </div>
     
     <div class="grid">
@@ -87,6 +99,15 @@
         <table>
             <thead><tr><th>Service</th><th>Rule ID</th><th>Weight</th><th>Compensated?</th></tr></thead>
             <tbody id="topFailuresBody"></tbody>
+        </table>
+    </div>
+
+    <div class="card" id="expiringControlsCard" style="display:none;">
+        <h2>⚠️ Expiring Compensating Controls</h2>
+        <p><span id="expiringCount" class="badge-warning">0</span> compensating controls are expiring within the next 30 days. <a href="/compensating-controls">Manage controls</a></p>
+        <table>
+            <thead><tr><th>Rule ID</th><th>Expires At</th><th>Rationale</th></tr></thead>
+            <tbody id="expiringControlsBody"></tbody>
         </table>
     </div>
 
@@ -148,6 +169,7 @@
 
                 displayLatest(result);
                 displayTopFailures(result.top_failures);
+                displayExpiringControls();
                 renderScoreTree(result.id, result);
                 await loadHistory();
 
@@ -175,21 +197,64 @@
         function displayTopFailures(failures) {
             const card = document.getElementById('topFailuresCard');
             const tbody = document.getElementById('topFailuresBody');
-            
+
             if (!failures || failures.length === 0) {
                 card.style.display = 'none';
                 return;
             }
-            
+
             card.style.display = 'block';
-            tbody.innerHTML = failures.map(f => `
-                <tr>
-                    <td>${f.service}</td>
-                    <td>${f.rule}</td>
-                    <td>${f.weight}</td>
-                    <td>${f.is_compensated ? 'Yes (50%)' : 'No'}</td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = failures.map(f => {
+                const compensatedCell = f.is_compensated
+                    ? `<span class="tooltip badge-compensated">50% CREDIT<span class="tooltiptext">This rule failure receives 50% credit because compensating controls are in place, reducing its impact on the overall score.</span></span>`
+                    : 'No';
+                return `
+                    <tr>
+                        <td>${f.service}</td>
+                        <td>${f.rule}</td>
+                        <td>${f.weight}</td>
+                        <td>${compensatedCell}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function displayExpiringControls() {
+            const card = document.getElementById('expiringControlsCard');
+            const tbody = document.getElementById('expiringControlsBody');
+            const countBadge = document.getElementById('expiringCount');
+
+            try {
+                const response = await fetch('/api/compensating-controls/expiring?days=30');
+                if (!response.ok) {
+                    card.style.display = 'none';
+                    return;
+                }
+
+                const controls = await response.json();
+
+                if (!controls || controls.length === 0) {
+                    card.style.display = 'none';
+                    return;
+                }
+
+                card.style.display = 'block';
+                countBadge.textContent = controls.length;
+
+                tbody.innerHTML = controls.map(c => {
+                    const expiresAt = c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'N/A';
+                    const rationale = c.rationale || 'No rationale provided';
+                    return `
+                        <tr>
+                            <td>${c.rule_id}</td>
+                            <td>${expiresAt}</td>
+                            <td>${rationale}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                card.style.display = 'none';
+            }
         }
 
         async function loadHistory() {
@@ -318,7 +383,10 @@
                     html += `<table><thead><tr><th>Rule</th><th>Weight</th><th>Compensated</th></tr></thead><tbody>`;
                     html += svcData.failed.map(f => {
                         // f is [rule_id, weight, is_comp]
-                        return `<tr><td>${f[0]}</td><td>${f[1]}</td><td>${f[2] ? 'Yes' : 'No'}</td></tr>`;
+                        const compensatedCell = f[2]
+                            ? `<span class="tooltip badge-compensated">50% CREDIT<span class="tooltiptext">This rule failure receives 50% credit because compensating controls are in place, reducing its impact on the overall score.</span></span>`
+                            : 'No';
+                        return `<tr><td>${f[0]}</td><td>${f[1]}</td><td>${compensatedCell}</td></tr>`;
                     }).join('');
                     html += `</tbody></table>`;
                 } else {
@@ -422,12 +490,15 @@
                     const ruleId = rule[0];
                     const weight = rule[1];
                     const isCompensated = rule[2] || false;
-                    const compensatedText = isCompensated ? ' (compensated)' : '';
+                    const compensatedBadge = isCompensated
+                        ? `<span class="tooltip badge-compensated" style="margin-left: 4px;">50% CREDIT<span class="tooltiptext">This rule failure receives 50% credit because compensating controls are in place, reducing its impact on the overall score.</span></span>`
+                        : '';
 
                     html += `
                         <div class="tree-leaf">
                             <span class="badge-fail">FAIL</span>
-                            <span style="margin-left: 8px;">${ruleId}${compensatedText}</span>
+                            <span style="margin-left: 8px;">${ruleId}</span>
+                            ${compensatedBadge}
                             <span class="tree-rule-weight">Weight: ${weight}</span>
                         </div>
                     `;
@@ -643,6 +714,7 @@
         // Load history on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadHistory();
+            displayExpiringControls();
         });
     </script>
 </body>
