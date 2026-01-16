@@ -35,11 +35,17 @@
                 <p>Define risk weights (1-5) for specific rules or prefixes.</p>
                 <textarea name="weights_yaml">{{ weights }}</textarea>
             </div>
-            
+
             <div class="card">
                 <h2>Service Weights (service_weights.yaml)</h2>
                 <p>Define the contribution of each service to the overall score.</p>
                 <textarea name="service_weights_yaml">{{ service_weights }}</textarea>
+            </div>
+
+            <div class="card">
+                <h2>Compensating Controls (compensating.yaml)</h2>
+                <p>Define compensating controls that reduce risk scores for specific rules.</p>
+                <textarea name="compensating_yaml">{{ compensating }}</textarea>
             </div>
         </div>
         <button type="submit">Save Configurations</button>

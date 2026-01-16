@@ -177,26 +177,31 @@ def settings():
                 f.write(request.form['weights_yaml'])
             with open("service_weights.yaml", "w") as f:
                 f.write(request.form['service_weights_yaml'])
-            
+            with open("compensating.yaml", "w") as f:
+                f.write(request.form['compensating_yaml'])
+
             # Reload global configs
             global WEIGHTS, SERVICE_WEIGHTS, COMPENSATING
             WEIGHTS, SERVICE_WEIGHTS, COMPENSATING = load_configs()
-            
+
             return redirect(url_for('settings', saved=True))
         except Exception as e:
             return render_template('settings.html', error=str(e))
-            
+
     # GET
     try:
         with open("weights.yaml", "r") as f:
             w_content = f.read()
         with open("service_weights.yaml", "r") as f:
             sw_content = f.read()
+        with open("compensating.yaml", "r") as f:
+            c_content = f.read()
     except:
         w_content = ""
         sw_content = ""
-        
-    return render_template('settings.html', weights=w_content, service_weights=sw_content)
+        c_content = ""
+
+    return render_template('settings.html', weights=w_content, service_weights=sw_content, compensating=c_content)
 
 @app.route('/score', methods=['GET', 'POST'])
 def score_endpoint():
