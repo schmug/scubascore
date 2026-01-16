@@ -54,6 +54,37 @@ def init_db():
         ''')
         db.commit()
 
+def migrate_compensating_yaml():
+    """Migrate compensating controls from compensating.yaml to database."""
+    try:
+        with app.app_context():
+            c = scubascore.load_yaml("compensating.yaml")
+            if not c or "compensating" not in c:
+                return
+
+            compensating_rules = c.get("compensating", {})
+            if not compensating_rules:
+                return
+
+            db = get_db()
+            cursor = db.cursor()
+
+            for rule_id, rule_data in compensating_rules.items():
+                if not isinstance(rule_data, dict):
+                    continue
+
+                rationale = rule_data.get("rationale")
+                expires = rule_data.get("expires")
+
+                cursor.execute(
+                    'INSERT OR IGNORE INTO compensating_controls (rule_id, rationale, expires_at) VALUES (?, ?, ?)',
+                    (rule_id, rationale, expires)
+                )
+
+            db.commit()
+    except Exception as e:
+        print(f"Warning: Migration failed: {e}")
+
 # --- Configuration Management ---
 def get_service_weights_filename(profile_name):
     """Get the service weights filename for a given profile."""
