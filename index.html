@@ -229,6 +229,27 @@
   .help-text { font-size: 12px; color: var(--text-faint); margin-top: 6px; }
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   @media (max-width: 760px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* Demo loader */
+  .demo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .demo-row .demo-hint { font-size: 13px; color: var(--text-soft); }
+
+  /* Tools reference card */
+  .ref-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 680px) { .ref-links { grid-template-columns: 1fr; } }
+  a.ref-link {
+    display: block; text-decoration: none; color: inherit;
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+    background: var(--panel-soft); transition: border-color .12s, background .12s;
+  }
+  a.ref-link:hover { border-color: var(--accent); background: var(--accent-soft); }
+  a.ref-link .ref-link-title { display: block; font-weight: 700; font-size: 14px; color: var(--accent); }
+  a.ref-link .ref-link-desc { display: block; font-size: 12px; color: var(--text-soft); margin-top: 2px; }
+
+  /* Footer links */
+  footer p { margin: 0 0 6px; }
+  footer .footer-links a { color: var(--text-soft); text-decoration: none; font-weight: 600; }
+  footer .footer-links a:hover { color: var(--accent); text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -260,11 +281,34 @@
         <div class="small">or click to choose files (multiple allowed)</div>
         <input id="fileInput" type="file" accept=".json,application/json" multiple />
       </div>
+      <div class="demo-row">
+        <span class="demo-hint">No assessment of your own yet? Try it with sample data:</span>
+        <button class="btn primary small" id="btnLoadDemo" type="button">🤿 Load demo data</button>
+      </div>
       <div id="loadedFiles" class="loaded-files"></div>
       <div id="parseErrors" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
     </div>
 
     <div id="resultsContainer"></div>
+
+    <div class="card ref-card">
+      <h2>New to CISA SCuBA?</h2>
+      <p class="sub">ScubaScore reads the JSON produced by CISA's free, open-source assessment tools. Run a scan with one of these against your tenant, then drop the report above.</p>
+      <div class="ref-links">
+        <a class="ref-link" href="https://github.com/cisagov/ScubaGear" target="_blank" rel="noopener noreferrer">
+          <span class="ref-link-title">ScubaGear ↗</span>
+          <span class="ref-link-desc">Microsoft 365 assessment tool</span>
+        </a>
+        <a class="ref-link" href="https://github.com/cisagov/ScubaGoggles" target="_blank" rel="noopener noreferrer">
+          <span class="ref-link-title">ScubaGoggles ↗</span>
+          <span class="ref-link-desc">Google Workspace assessment tool</span>
+        </a>
+        <a class="ref-link" href="https://www.cisa.gov/resources-tools/services/secure-cloud-business-applications-scuba-project" target="_blank" rel="noopener noreferrer">
+          <span class="ref-link-title">SCuBA project ↗</span>
+          <span class="ref-link-desc">CISA's secure-configuration baselines</span>
+        </a>
+      </div>
+    </div>
   </section>
 
   <!-- ===================== WEIGHTS VIEW ===================== -->
@@ -328,7 +372,13 @@
 </main>
 
 <footer>
-  ScubaScore runs 100% client-side. No data is uploaded, stored remotely, or transmitted. Weights persist only in this browser's localStorage.
+  <p>ScubaScore runs 100% client-side. No data is uploaded, stored remotely, or transmitted. Weights persist only in this browser's localStorage.</p>
+  <p class="footer-links">
+    <a href="https://github.com/cisagov/ScubaGear" target="_blank" rel="noopener noreferrer">ScubaGear</a> ·
+    <a href="https://github.com/cisagov/ScubaGoggles" target="_blank" rel="noopener noreferrer">ScubaGoggles</a> ·
+    <a href="https://www.cisa.gov/resources-tools/services/secure-cloud-business-applications-scuba-project" target="_blank" rel="noopener noreferrer">CISA SCuBA project</a> ·
+    <a href="https://github.com/schmug/scubascore" target="_blank" rel="noopener noreferrer">Source</a>
+  </p>
 </footer>
 
 <script>
@@ -608,6 +658,27 @@ var DEFAULT_RULE_WEIGHTS = {
   "GWS.CALENDAR.": 0.8
 };
 
+// Bundled, trusted sample assessments so visitors can explore without their own
+// data. These are CISA's official sample reports for ScubaGoggles (Google
+// Workspace) and ScubaGear (Microsoft 365), trimmed to the three fields
+// ScubaScore reads (Control ID, Result, Criticality) and collapsed to one group
+// per service. Real verdicts are preserved verbatim, including "Warning" and
+// "No events found", which ScubaScore counts as unknown/unscored. Embedded
+// inline (NOT fetched) because the page's CSP sets connect-src 'none'.
+// Sources (public-domain U.S. Government work):
+//   ScubaGoggles: github.com/cisagov/ScubaGoggles  sample-report/ScubaResults_*.json
+//   ScubaGear:    github.com/cisagov/ScubaGear      PowerShell/ScubaGear/Sample-Reports/ScubaResults_*.json
+var DEMO_FILES = [
+  {
+    name: "demo-google-workspace.json",
+    data: {"Results":{"calendar":[{"Controls":[{"Control ID":"GWS.CALENDAR.1.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CALENDAR.1.2v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CALENDAR.2.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.CALENDAR.3.1v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.CALENDAR.3.2v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.CALENDAR.4.1v0.6","Result":"Pass","Criticality":"Shall"}]}],"chat":[{"Controls":[{"Control ID":"GWS.CHAT.1.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CHAT.1.2v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CHAT.2.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CHAT.3.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.CHAT.4.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CHAT.5.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CHAT.5.2v0.6","Result":"Warning","Criticality":"Should"}]}],"classroom":[{"Controls":[{"Control ID":"GWS.CLASSROOM.1.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.CLASSROOM.1.2v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.CLASSROOM.2.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CLASSROOM.3.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.CLASSROOM.4.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.CLASSROOM.5.1v0.6","Result":"Fail","Criticality":"Shall"}]}],"commoncontrols":[{"Controls":[{"Control ID":"GWS.COMMONCONTROLS.1.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.1.2v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.1.3v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.1.4v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.1.5v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.2.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.COMMONCONTROLS.3.1v0.6","Result":"No events found","Criticality":"Should"},{"Control ID":"GWS.COMMONCONTROLS.3.2v0.6","Result":"No events found","Criticality":"Should"},{"Control ID":"GWS.COMMONCONTROLS.4.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.5.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.5.2v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.5.3v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.COMMONCONTROLS.5.4v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.5.5v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.5.6v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.6.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.6.2v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.7.1v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.8.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.8.2v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.8.3v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.9.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.9.2v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.10.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.10.2v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.10.3v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.10.4v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.10.5v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.11.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.12.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.13.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.14.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.14.2v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.15.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.15.2v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.COMMONCONTROLS.16.1v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.COMMONCONTROLS.16.2v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.COMMONCONTROLS.17.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.COMMONCONTROLS.18.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.18.2v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.18.3v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.COMMONCONTROLS.18.4v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"}]}],"drive":[{"Controls":[{"Control ID":"GWS.DRIVEDOCS.1.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.DRIVEDOCS.1.2v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.DRIVEDOCS.1.3v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.1.4v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.1.5v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.1.6v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.1.7v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.1.8v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.1.9v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.DRIVEDOCS.1.10v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.DRIVEDOCS.1.11v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.DRIVEDOCS.2.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.DRIVEDOCS.2.2v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.3.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.4.1v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.DRIVEDOCS.5.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.DRIVEDOCS.6.1v0.6","Result":"Warning","Criticality":"Should"}]}],"gemini":[{"Controls":[{"Control ID":"GWS.GEMINI.1.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GEMINI.2.1v0.6","Result":"Pass","Criticality":"Shall"}]}],"gmail":[{"Controls":[{"Control ID":"GWS.GMAIL.1.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.GMAIL.2.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.GMAIL.3.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.4.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.4.2v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.4.3v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.4.4v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.GMAIL.5.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.5.2v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.5.3v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.5.4v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.GMAIL.5.5v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.5.6v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.GMAIL.6.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.6.2v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.6.3v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.6.4v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.GMAIL.6.5v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.GMAIL.7.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.7.2v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.7.3v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.7.4v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.7.5v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.7.6v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.7.7v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.GMAIL.7.8v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.GMAIL.8.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.9.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.10.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.11.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.12.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.13.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.14.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.GMAIL.15.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GMAIL.15.2v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.GMAIL.16.1v0.6","Result":"No events found","Criticality":"Should"},{"Control ID":"GWS.GMAIL.16.2v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.GMAIL.17.1v0.6","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"GWS.GMAIL.18.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.GMAIL.18.2v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.GMAIL.18.3v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"}]}],"groups":[{"Controls":[{"Control ID":"GWS.GROUPS.1.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.GROUPS.1.2v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.GROUPS.1.3v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.GROUPS.2.1v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.GROUPS.3.1v0.6","Result":"Pass","Criticality":"Should"},{"Control ID":"GWS.GROUPS.4.1v0.6","Result":"Fail","Criticality":"Shall"}]}],"meet":[{"Controls":[{"Control ID":"GWS.MEET.1.1v0.6","Result":"Warning","Criticality":"Should"},{"Control ID":"GWS.MEET.2.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.MEET.3.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.MEET.4.1v0.6","Result":"Fail","Criticality":"Shall"},{"Control ID":"GWS.MEET.5.1v0.6","Result":"Pass","Criticality":"Shall"},{"Control ID":"GWS.MEET.6.1v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"GWS.MEET.6.2v0.6","Result":"N/A","Criticality":"Shall/Not-Implemented"}]}],"sites":[{"Controls":[{"Control ID":"GWS.SITES.1.1v0.6","Result":"Warning","Criticality":"Should"}]}]}}
+  },
+  {
+    name: "demo-microsoft-365.json",
+    data: {"Results":{"AAD":[{"Controls":[{"Control ID":"MS.AAD.1.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.2.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.2.2v1","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"MS.AAD.2.3v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.3.1v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.3.2v2","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.3.3v2","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.3.4v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.3.5v2","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.3.6v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.3.7v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.AAD.3.8v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.AAD.3.9v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.AAD.4.1v1","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"MS.AAD.5.1v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.5.2v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.5.3v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.6.1v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.7.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.7.2v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.7.3v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.7.4v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.7.5v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.7.6v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.7.7v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.AAD.7.8v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.AAD.7.9v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.AAD.8.1v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.AAD.8.2v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.AAD.8.3v1","Result":"N/A","Criticality":"Should/Not-Implemented"}]}],"Defender":[{"Controls":[{"Control ID":"MS.DEFENDER.1.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.DEFENDER.1.2v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.DEFENDER.1.3v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.DEFENDER.1.4v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.DEFENDER.1.5v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.DEFENDER.2.1v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.DEFENDER.2.2v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.DEFENDER.2.3v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.DEFENDER.3.1v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.DEFENDER.4.1v2","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.DEFENDER.4.2v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.DEFENDER.4.3v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.DEFENDER.4.4v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.DEFENDER.4.5v1","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"MS.DEFENDER.4.6v1","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"MS.DEFENDER.5.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.DEFENDER.5.2v1","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"MS.DEFENDER.6.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.DEFENDER.6.3v1","Result":"N/A","Criticality":"Shall/Not-Implemented"}]}],"EXO":[{"Controls":[{"Control ID":"MS.EXO.1.1v2","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.2.2v3","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.3.1v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.EXO.4.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.4.2v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.4.3v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.4.4v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.EXO.5.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.6.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.6.2v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.7.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.EXO.13.1v1","Result":"Pass","Criticality":"Shall"}]}],"PowerPlatform":[{"Controls":[{"Control ID":"MS.POWERPLATFORM.1.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.POWERPLATFORM.1.2v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.POWERPLATFORM.2.1v1","Result":"Fail","Criticality":"Shall"},{"Control ID":"MS.POWERPLATFORM.2.2v1","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.POWERPLATFORM.3.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.POWERPLATFORM.3.2v1","Result":"N/A","Criticality":"Should/Not-Implemented"},{"Control ID":"MS.POWERPLATFORM.4.1v1","Result":"N/A","Criticality":"Shall/Not-Implemented"},{"Control ID":"MS.POWERPLATFORM.5.1v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.POWERPLATFORM.6.1v1","Result":"Pass","Criticality":"Should"}]}],"SharePoint":[{"Controls":[{"Control ID":"MS.SHAREPOINT.1.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.SHAREPOINT.1.2v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.SHAREPOINT.1.3v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.SHAREPOINT.2.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.SHAREPOINT.2.2v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.SHAREPOINT.3.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.SHAREPOINT.3.2v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.SHAREPOINT.3.3v1","Result":"Pass","Criticality":"Shall"}]}],"Teams":[{"Controls":[{"Control ID":"MS.TEAMS.1.1v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.TEAMS.1.2v2","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.TEAMS.1.3v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.TEAMS.1.4v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.TEAMS.1.5v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.TEAMS.1.6v1","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.TEAMS.1.7v2","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.TEAMS.2.1v2","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.TEAMS.2.2v2","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.TEAMS.2.3v2","Result":"Pass","Criticality":"Should"},{"Control ID":"MS.TEAMS.4.1v1","Result":"Pass","Criticality":"Shall"},{"Control ID":"MS.TEAMS.5.1v2","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.TEAMS.5.2v2","Result":"Warning","Criticality":"Should"},{"Control ID":"MS.TEAMS.5.3v2","Result":"Warning","Criticality":"Should"}]}]}}
+  }
+];
+
 // --- Active weights state ---
 var state = {
   preset: "gws",
@@ -758,6 +829,19 @@ function upsertFile(entry) {
 
 function removeFile(name) {
   loadedFiles = loadedFiles.filter(function (f) { return f.name !== name; });
+  renderLoadedFiles();
+  renderResults();
+}
+
+// Inject the bundled sample assessments as if the user had loaded them. They
+// appear as ordinary (removable) file chips and are deduped by name via
+// upsertFile, so repeated clicks don't pile up. Cloned so scoring never touches
+// the shared DEMO_FILES constant. Touches no weights/localStorage.
+function loadDemo() {
+  DEMO_FILES.forEach(function (d) {
+    upsertFile({ name: d.name, data: clone(d.data), error: null });
+  });
+  activateTab("results");
   renderLoadedFiles();
   renderResults();
 }
@@ -1279,6 +1363,9 @@ function init() {
   dz.addEventListener("drop", function (e) {
     if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
   });
+
+  // Demo data loader
+  document.getElementById("btnLoadDemo").addEventListener("click", loadDemo);
 
   // Preset pills
   var pills = document.querySelectorAll(".pill[data-preset]");

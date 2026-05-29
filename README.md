@@ -33,8 +33,13 @@ never leaves the machine.
 3. **Read the scores.** Results render instantly. Adjust the model on the
    **Weights** tab and every loaded file rescores live.
 
-Want to try it first? Load the bundled **`test_scuba_results.json`** sample to
-see a full scorecard with passes, failures, and a compensating control.
+Want to try it first? Click **"Load demo data"** on the **Results** tab to
+instantly score CISA's own published sample reports — the official
+[ScubaGoggles](https://github.com/cisagov/ScubaGoggles) (Google Workspace) and
+[ScubaGear](https://github.com/cisagov/ScubaGear) (Microsoft 365) sample
+results, bundled inline and trimmed to the fields ScubaScore reads. Switch
+presets on the **Weights** tab to watch them rescore live. (You can also drag in
+the bundled **`test_scuba_results.json`** file.)
 
 ## Results shown
 
