@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<!--
+  Content Security Policy: enforces the offline / no-network guarantee.
+  connect-src 'none' blocks fetch/XHR/WebSocket/EventSource (prevents
+  exfiltration of locally-parsed ScubaGoggles JSON). default-src 'none'
+  denies everything not explicitly allowed. 'unsafe-inline' is required
+  because all CSS and JS in this single-file app are inline; with it the
+  CSP does NOT block XSS *execution* — the XSS defense remains the
+  no-innerHTML-with-untrusted-data rule used throughout. img-src permits
+  self/data/blob defensively; no images are currently loaded, and the
+  JSON-export download (anchor with the download attribute) is NOT gated
+  by any fetch directive, so it works regardless. frame-ancestors is
+  omitted because it is inert in a <meta>-delivered CSP (header-only).
+  Works under file:// (meta-delivered CSP is honored by browsers).
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ScubaScore — Score CISA ScubaGoggles Output</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --bg-soft: #1e293b;
+    --panel: #ffffff;
+    --panel-soft: #f8fafc;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --text: #0f172a;
+    --text-soft: #475569;
+    --text-faint: #94a3b8;
+    --accent: #2563eb;
+    --accent-soft: #dbeafe;
+    --green: #16a34a;
+    --green-soft: #dcfce7;
+    --amber: #d97706;
+    --amber-soft: #fef3c7;
+    --red: #dc2626;
+    --red-soft: #fee2e2;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 10px 25px rgba(15, 23, 42, 0.10);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  header.app {
+    background: var(--bg);
+    color: #fff;
+    padding: 20px 24px;
+    box-shadow: var(--shadow);
+  }
+  header.app .wrap { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  header.app .logo {
+    width: 40px; height: 40px; border-radius: 9px;
+    background: linear-gradient(135deg, #38bdf8, #2563eb);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex: 0 0 auto;
+  }
+  header.app h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+  header.app p { margin: 2px 0 0; font-size: 13px; color: #cbd5e1; }
+  header.app .offline-badge {
+    margin-left: auto; font-size: 12px; background: rgba(56,189,248,0.15);
+    color: #7dd3fc; border: 1px solid rgba(56,189,248,0.4);
+    padding: 4px 10px; border-radius: 999px; font-weight: 600;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+  nav.tabs { display: flex; gap: 6px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  nav.tabs button {
+    appearance: none; background: none; border: none; cursor: pointer;
+    font-size: 14px; font-weight: 600; color: var(--text-soft);
+    padding: 10px 16px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  nav.tabs button:hover { color: var(--text); }
+  nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 20px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
+  .card .sub { color: var(--text-soft); font-size: 13px; margin: 0 0 16px; }
+
+  /* Drop zone */
+  #dropzone {
+    border: 2px dashed var(--border-strong); border-radius: var(--radius);
+    background: var(--panel-soft); padding: 36px 20px; text-align: center;
+    cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  #dropzone .icon { font-size: 36px; }
+  #dropzone .big { font-size: 15px; font-weight: 600; margin-top: 8px; }
+  #dropzone .small { font-size: 13px; color: var(--text-soft); margin-top: 4px; }
+  #dropzone input[type=file] { display: none; }
+
+  .btn {
+    appearance: none; cursor: pointer; font-size: 13px; font-weight: 600;
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: #fff; color: var(--text); transition: background .12s, border-color .12s;
+  }
+  .btn:hover { background: var(--panel-soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #1d4ed8; }
+  .btn.danger { color: var(--red); border-color: var(--red-soft); }
+  .btn.danger:hover { background: var(--red-soft); }
+  .btn.small { padding: 4px 9px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  .loaded-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .file-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent-soft); color: #1e40af; border: 1px solid #bfdbfe;
+    padding: 5px 6px 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  }
+  .file-chip button {
+    appearance: none; border: none; cursor: pointer; background: rgba(30,64,175,0.12);
+    color: #1e40af; width: 18px; height: 18px; border-radius: 50%; font-size: 12px;
+    line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .file-chip button:hover { background: rgba(30,64,175,0.25); }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; color: var(--text-soft); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: none; }
+  .table-wrap { overflow-x: auto; }
+  code, .rule-id { font-family: var(--mono); font-size: 12px; }
+
+  input[type=number], input[type=text] {
+    font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border-strong);
+    border-radius: 6px; background: #fff; color: var(--text); width: 100%;
+  }
+  input[type=number] { max-width: 110px; }
+  input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+
+  .preset-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    appearance: none; cursor: pointer; font-size: 13px; font-weight: 600;
+    padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border-strong);
+    background: #fff; color: var(--text-soft);
+  }
+  .pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .active-preset-note {
+    font-size: 13px; color: var(--text-soft); margin-top: 10px;
+    background: var(--panel-soft); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+  }
+  .active-preset-note strong { color: var(--text); }
+
+  /* Results */
+  .result-section { }
+  .result-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .result-head .meta { flex: 1 1 240px; min-width: 220px; }
+  .result-head .filename { font-size: 15px; font-weight: 700; word-break: break-all; }
+  .result-head .filemeta { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+
+  .gauge { flex: 1 1 320px; min-width: 280px; }
+  .gauge .score-line { display: flex; align-items: baseline; gap: 10px; }
+  .gauge .score-num { font-size: 44px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  .gauge .score-unit { font-size: 20px; font-weight: 700; color: var(--text-faint); }
+  .gauge .score-band { font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+  .gauge .bar { height: 14px; border-radius: 999px; background: var(--border); margin-top: 10px; overflow: hidden; }
+  .gauge .bar > span { display: block; height: 100%; border-radius: 999px; transition: width .3s; }
+
+  .band-green { background: var(--green); }
+  .band-amber { background: var(--amber); }
+  .band-red { background: var(--red); }
+  .pill-green { background: var(--green-soft); color: #166534; }
+  .pill-amber { background: var(--amber-soft); color: #92400e; }
+  .pill-red { background: var(--red-soft); color: #991b1b; }
+  .text-green { color: var(--green); }
+  .text-amber { color: var(--amber); }
+  .text-red { color: var(--red); }
+
+  .section-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-soft); margin: 22px 0 8px; }
+
+  .badge-comp {
+    display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px;
+    border-radius: 999px; background: var(--amber-soft); color: #92400e; border: 1px solid #fde68a;
+  }
+  .dq-line { font-size: 13px; color: var(--text-soft); margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .dq-line .warn { color: var(--amber); font-weight: 600; }
+
+  .empty-state {
+    text-align: center; color: var(--text-soft); padding: 32px 16px;
+    background: var(--panel-soft); border: 1px dashed var(--border-strong); border-radius: var(--radius);
+  }
+  .empty-state .icon { font-size: 32px; }
+  .empty-state .msg { margin-top: 8px; font-size: 14px; font-weight: 600; }
+  .empty-state .hint { font-size: 13px; margin-top: 4px; }
+
+  .parse-error {
+    background: var(--red-soft); border: 1px solid #fecaca; color: #991b1b;
+    border-radius: 8px; padding: 12px 14px; font-size: 13px;
+  }
+  .parse-error .fn { font-weight: 700; }
+
+  footer { max-width: 1100px; margin: 0 auto; padding: 8px 24px 40px; font-size: 12px; color: var(--text-faint); }
+
+  .row-add { margin-top: 10px; }
+  .hidden { display: none !important; }
+  .help-text { font-size: 12px; color: var(--text-faint); margin-top: 6px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="wrap">
+    <div class="logo" aria-hidden="true">🤿</div>
+    <div>
+      <h1>ScubaScore</h1>
+      <p>Score CISA ScubaGoggles &amp; ScubaGear JSON output — entirely in your browser.</p>
+    </div>
+    <span class="offline-badge">Offline · No upload</span>
+  </div>
+</header>
+
+<main>
+  <nav class="tabs" role="tablist">
+    <button id="tab-results" role="tab" aria-selected="true" aria-controls="view-results">Results</button>
+    <button id="tab-weights" role="tab" aria-selected="false" aria-controls="view-weights">Weights</button>
+  </nav>
+
+  <!-- ===================== RESULTS VIEW ===================== -->
+  <section id="view-results" class="view active" role="tabpanel" aria-labelledby="tab-results">
+    <div class="card">
+      <h2>Load ScubaGoggles output</h2>
+      <p class="sub">Drag &amp; drop one or more <code>.json</code> files, or click to choose. Files are parsed locally and never leave this page.</p>
+      <div id="dropzone" tabindex="0" role="button" aria-label="Drop JSON files here or click to choose files">
+        <div class="icon" aria-hidden="true">📁</div>
+        <div class="big">Drop ScubaGoggles JSON here</div>
+        <div class="small">or click to choose files (multiple allowed)</div>
+        <input id="fileInput" type="file" accept=".json,application/json" multiple />
+      </div>
+      <div id="loadedFiles" class="loaded-files"></div>
+      <div id="parseErrors" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+
+    <div id="resultsContainer"></div>
+  </section>
+
+  <!-- ===================== WEIGHTS VIEW ===================== -->
+  <section id="view-weights" class="view" role="tabpanel" aria-labelledby="tab-weights">
+    <div class="card">
+      <h2>Service-weight preset</h2>
+      <p class="sub">The preset decides which services contribute to the overall score and how heavily. Editing any weight switches the active set to <strong>Custom</strong>.</p>
+      <div class="preset-pills">
+        <button class="pill" data-preset="gws" aria-pressed="false">GWS</button>
+        <button class="pill" data-preset="m365" aria-pressed="false">M365</button>
+        <button class="pill" data-preset="custom" aria-pressed="false">Custom</button>
+      </div>
+      <div class="active-preset-note" id="activePresetNote"></div>
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn" id="btnReset">Reset to preset</button>
+        <button class="btn" id="btnExport">Export weights</button>
+        <button class="btn" id="btnImport">Import weights</button>
+        <input id="importInput" type="file" accept=".json,application/json" class="hidden" />
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <h2>Service weights</h2>
+        <p class="sub">Multiplier applied per service in the overall score. A service absent here contributes weight 1.0 to its own per-service score but is excluded from the overall roll-up unless listed.</p>
+        <div class="table-wrap">
+          <table id="serviceWeightsTable">
+            <thead><tr><th>Service</th><th class="num">Weight</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="row-add"><button class="btn small" id="btnAddService">+ Add service</button></div>
+      </div>
+
+      <div class="card">
+        <h2>Compensating controls</h2>
+        <p class="sub">A failed rule listed here earns 50% of its weight (numerator) but stays in the denominator.</p>
+        <div class="table-wrap">
+          <table id="compTable">
+            <thead><tr><th>Rule ID</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="row-add"><button class="btn small" id="btnAddComp">+ Add rule ID</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Rule weights</h2>
+      <p class="sub">Per-rule base weight. Keys ending in <code>.</code> are <strong>prefix</strong> rules (longest-prefix match); other keys are exact rule IDs. Unmatched rules default to <span id="defaultWeightLabel"></span>.</p>
+      <div class="table-wrap">
+        <table id="ruleWeightsTable">
+          <thead><tr><th>Rule ID / prefix</th><th class="num">Weight</th><th>Type</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="row-add"><button class="btn small" id="btnAddRule">+ Add rule weight</button></div>
+      <p class="help-text">Default rule weight: <input type="number" id="defaultWeightInput" step="0.1" min="0" style="max-width:90px; margin-left:6px;" /></p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  ScubaScore runs 100% client-side. No data is uploaded, stored remotely, or transmitted. Weights persist only in this browser's localStorage.
+</footer>
+
+<script>
+"use strict";
+
+// === SCORING ENGINE START ===
+// Pure scoring functions ported from the original scubascore.py (commit 5ca2647).
+// One intentional divergence: inferService() matches service segments
+// case-insensitively (the Python original matched lowercase only) so that real
+// uppercase-ID ScubaGoggles/ScubaGear exports are attributed to a service.
+// NO DOM / window / localStorage access inside this region.
+
+function normalizeVerdict(v) {
+  if (v === null || v === undefined) return "UNKNOWN";
+  var s = String(v).toUpperCase().trim();
+  if (s === "PASS" || s === "PASSED" || s === "TRUE") return "PASS";
+  if (s === "FAIL" || s === "FAILED" || s === "FALSE") return "FAIL";
+  if (s === "N/A" || s === "NA" || s === "NOT APPLICABLE") return "NA";
+  if (s === "UNKNOWN" || s === "ERROR") return "UNKNOWN";
+  return s;
+}
+
+function inferService(ruleId) {
+  if (!ruleId) return null;
+  // Real ScubaGoggles (e.g. "GWS.GMAIL.1.1") and ScubaGear (e.g. "MS.AAD.1.1")
+  // control IDs use UPPERCASE service segments. Match the service segment
+  // case-insensitively and normalize it to lowercase so it lines up with the
+  // lowercase service-weight preset keys (gmail, drive, aad, ...). This is an
+  // INTENTIONAL divergence from the original Python infer_service, which matched
+  // only lowercase and therefore left real uppercase-ID exports unscored.
+  var m = String(ruleId).match(/^[A-Za-z0-9]+\.([A-Za-z_]+)\.?/);
+  if (m) return m[1].toLowerCase();
+  return null;
+}
+
+function normalizeRule(r, defaultService) {
+  if (r === null || r === undefined || typeof r !== "object") r = {};
+  var ruleId = r.rule_id || r["Control ID"] || r.id || r.rule || r.name;
+  var verdict = normalizeVerdict(r.verdict || r.Result || r.result || r.status);
+  var service = r.service || r.product || r.category || defaultService;
+  if (!service) service = inferService(ruleId);
+  var severity = r.severity || r.Criticality || r.priority || r.weight_class;
+  return { ruleId: ruleId, verdict: verdict, service: service, severity: severity };
+}
+
+function iterRules(data) {
+  var out = [];
+  if (Array.isArray(data)) {
+    for (var i = 0; i < data.length; i++) out.push(normalizeRule(data[i]));
+    return out;
+  }
+  if (data !== null && typeof data === "object") {
+    // M365 shape: data.Results is an object of {service: [groups]}
+    if (data.Results !== null && typeof data.Results === "object" && !Array.isArray(data.Results)) {
+      var results = data.Results;
+      for (var svc in results) {
+        if (!Object.prototype.hasOwnProperty.call(results, svc)) continue;
+        var groups = results[svc];
+        if (!Array.isArray(groups)) continue;
+        for (var g = 0; g < groups.length; g++) {
+          var group = groups[g];
+          if (!group || !Array.isArray(group.Controls)) continue;
+          for (var c = 0; c < group.Controls.length; c++) {
+            out.push(normalizeRule(group.Controls[c], svc));
+          }
+        }
+      }
+      return out;
+    }
+
+    var candidates = null;
+    var keys = ["results", "rules", "checks", "findings", "items"];
+    for (var k = 0; k < keys.length; k++) {
+      if (Array.isArray(data[keys[k]])) { candidates = data[keys[k]]; break; }
+    }
+
+    // data.services is an object of {service: {rules|results|checks: []}}
+    if (candidates === null && data.services !== null && typeof data.services === "object" && !Array.isArray(data.services)) {
+      var services = data.services;
+      for (var s2 in services) {
+        if (!Object.prototype.hasOwnProperty.call(services, s2)) continue;
+        var obj = services[s2];
+        if (!obj || typeof obj !== "object") continue;
+        var rules = obj.rules || obj.results || obj.checks;
+        if (Array.isArray(rules)) {
+          for (var ri = 0; ri < rules.length; ri++) out.push(normalizeRule(rules[ri], s2));
+        }
+      }
+      return out;
+    }
+
+    // first array-valued property
+    if (candidates === null) {
+      for (var prop in data) {
+        if (!Object.prototype.hasOwnProperty.call(data, prop)) continue;
+        if (Array.isArray(data[prop])) { candidates = data[prop]; break; }
+      }
+    }
+
+    if (candidates !== null) {
+      for (var ci = 0; ci < candidates.length; ci++) out.push(normalizeRule(candidates[ci]));
+    }
+  }
+  return out;
+}
+
+function resolveWeight(ruleId, ruleWeights, defaultWeight) {
+  if (defaultWeight === undefined) defaultWeight = 1.0;
+  if (ruleId === null || ruleId === undefined) return defaultWeight;
+  // Exact match
+  if (Object.prototype.hasOwnProperty.call(ruleWeights, ruleId)) {
+    return ruleWeights[ruleId];
+  }
+  // Longest-prefix match
+  var best = null;
+  var bestLen = -1;
+  for (var key in ruleWeights) {
+    if (!Object.prototype.hasOwnProperty.call(ruleWeights, key)) continue;
+    if (String(ruleId).indexOf(key) === 0 && key.length > bestLen) {
+      best = key;
+      bestLen = key.length;
+    }
+  }
+  if (best !== null) return ruleWeights[best];
+  return defaultWeight;
+}
+
+function computeScores(data, ruleWeights, serviceWeights, compensatingSet, defaultWeight) {
+  if (defaultWeight === undefined) defaultWeight = 1.0;
+  if (!compensatingSet) compensatingSet = new Set();
+  ruleWeights = ruleWeights || {};
+  serviceWeights = serviceWeights || {};
+
+  function round2(x) { return Math.round(x * 100) / 100; }
+
+  var per = {}; // svc -> aggregate
+  var totalRules = 0;
+  var unknownOrNa = 0;
+
+  var entries = iterRules(data);
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    totalRules++;
+    var svc = entry.service || "unspecified";
+    if (!Object.prototype.hasOwnProperty.call(per, svc)) {
+      per[svc] = { W_pass: 0, W_eval: 0, passed: [], failed: [] };
+    }
+    var agg = per[svc];
+    var W = resolveWeight(entry.ruleId, ruleWeights, defaultWeight);
+
+    if (entry.verdict === "PASS") {
+      agg.W_pass += W;
+      agg.W_eval += W;
+      agg.passed.push([entry.ruleId, W]);
+    } else if (entry.verdict === "FAIL") {
+      var adjusted = compensatingSet.has(entry.ruleId) ? 0.5 : 0.0;
+      agg.W_pass += W * adjusted;
+      agg.W_eval += W;
+      agg.failed.push([entry.ruleId, W, adjusted > 0]);
+    } else if (entry.verdict === "NA") {
+      // skip
+    } else {
+      unknownOrNa++;
+    }
+  }
+
+  var perService = {};
+  for (var s in per) {
+    if (!Object.prototype.hasOwnProperty.call(per, s)) continue;
+    var a = per[s];
+    var score = a.W_eval > 0 ? round2((a.W_pass / a.W_eval) * 100) : null;
+    perService[s] = {
+      score: score,
+      evaluated_weight: round2(a.W_eval),
+      passed_weight: round2(a.W_pass),
+      passed_count: a.passed.length,
+      failed_count: a.failed.length,
+      passed: a.passed,
+      failed: a.failed
+    };
+  }
+
+  var totalWeight = 0;
+  var weightedSum = 0;
+  for (var svc2 in serviceWeights) {
+    if (!Object.prototype.hasOwnProperty.call(serviceWeights, svc2)) continue;
+    var w = serviceWeights[svc2];
+    if (Object.prototype.hasOwnProperty.call(perService, svc2) && perService[svc2].score !== null) {
+      totalWeight += w;
+      weightedSum += w * perService[svc2].score;
+    }
+  }
+  var overallScore = totalWeight > 0 ? round2(weightedSum / totalWeight) : null;
+
+  return {
+    generated_at: new Date().toISOString(),
+    overall_score: overallScore,
+    per_service: perService,
+    data_quality: {
+      unknown_or_error_entries: unknownOrNa,
+      total_entries_seen: totalRules
+    }
+  };
+}
+
+function topFailures(result, n) {
+  if (n === undefined) n = 5;
+  var flat = [];
+  var per = result.per_service || {};
+  for (var svc in per) {
+    if (!Object.prototype.hasOwnProperty.call(per, svc)) continue;
+    var failed = per[svc].failed || [];
+    for (var i = 0; i < failed.length; i++) {
+      var f = failed[i]; // [ruleId, weight, is_compensated]
+      var weight = f[1];
+      var isComp = !!f[2];
+      flat.push({
+        service: svc,
+        rule: f[0],
+        weight: weight,
+        is_compensated: isComp,
+        effective_weight: isComp ? weight * 0.5 : weight
+      });
+    }
+  }
+  flat.sort(function (a, b) { return b.effective_weight - a.effective_weight; });
+  return flat.slice(0, n);
+}
+
+if (typeof module !== "undefined" && module.exports) { module.exports = { normalizeVerdict, inferService, normalizeRule, iterRules, resolveWeight, computeScores, topFailures }; }
+// === SCORING ENGINE END ===
+
+
+// ===================== APPLICATION (DOM) LAYER =====================
+
+var LS_KEY = "scubascore.weights.v1";
+var DEFAULT_RULE_WEIGHT = 1;
+
+var SERVICE_PRESETS = {
+  gws: {
+    aad: 1, exo: 1, defender: 1, sharepoint: 1, teams: 1,
+    gmail: 1, commoncontrols: 1, drivedocs: 1, calendar: 1
+  },
+  m365: {
+    aad: 1.6, exo: 1.3, defender: 1.4, sharepoint: 1.1, teams: 1.2,
+    gmail: 1, commoncontrols: 1, drivedocs: 1, calendar: 1
+  }
+};
+
+var DEFAULT_RULE_WEIGHTS = {
+  "MS.AAD.": 1.5,
+  "MS.AAD.1.1v1": 3,
+  "MS.AAD.3.1v1": 3,
+  "MS.AAD.3.2v1": 2.5,
+  "MS.AAD.3.3v1": 2,
+  "MS.EXO.": 1.2,
+  "MS.EXO.1.1v1": 2,
+  "MS.EXO.2.2v1": 2.5,
+  "MS.EXO.4.1v1": 2,
+  "MS.DEFENDER.": 1.3,
+  "MS.DEFENDER.1.1v1": 2,
+  "MS.SHAREPOINT.": 1,
+  "MS.TEAMS.": 1.1,
+  "MS.TEAMS.2.1v1": 1.5,
+  "GWS.GMAIL.": 1.2,
+  "GWS.GMAIL.1.1v1": 2,
+  "GWS.COMMONCONTROLS.": 1.4,
+  "GWS.COMMONCONTROLS.1.1v1": 2.5,
+  "GWS.DRIVEDOCS.": 1,
+  "GWS.CALENDAR.": 0.8
+};
+
+// --- Active weights state ---
+var state = {
+  preset: "gws",
+  ruleWeights: {},
+  serviceWeights: {},
+  compensating: [],
+  defaultWeight: DEFAULT_RULE_WEIGHT
+};
+
+// Loaded files: name -> { data, error }
+var loadedFiles = []; // ordered array of {name, data, error}
+
+// ---------- localStorage persistence ----------
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+function defaultStateForPreset(presetName) {
+  var p = presetName === "m365" ? "m365" : "gws";
+  return {
+    preset: p,
+    ruleWeights: clone(DEFAULT_RULE_WEIGHTS),
+    serviceWeights: clone(SERVICE_PRESETS[p]),
+    compensating: [],
+    defaultWeight: DEFAULT_RULE_WEIGHT
+  };
+}
+
+function loadState() {
+  var raw = null;
+  try { raw = localStorage.getItem(LS_KEY); } catch (e) { raw = null; }
+  if (raw) {
+    try {
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        state.preset = (parsed.preset === "m365" || parsed.preset === "gws" || parsed.preset === "custom") ? parsed.preset : "custom";
+        state.ruleWeights = (parsed.ruleWeights && typeof parsed.ruleWeights === "object") ? parsed.ruleWeights : clone(DEFAULT_RULE_WEIGHTS);
+        state.serviceWeights = (parsed.serviceWeights && typeof parsed.serviceWeights === "object") ? parsed.serviceWeights : clone(SERVICE_PRESETS.gws);
+        state.compensating = Array.isArray(parsed.compensating) ? parsed.compensating.slice() : [];
+        state.defaultWeight = (typeof parsed.defaultWeight === "number" && isFinite(parsed.defaultWeight)) ? parsed.defaultWeight : DEFAULT_RULE_WEIGHT;
+        return;
+      }
+    } catch (e) { /* fall through */ }
+  }
+  // default: GWS preset
+  var d = defaultStateForPreset("gws");
+  state.preset = d.preset; state.ruleWeights = d.ruleWeights;
+  state.serviceWeights = d.serviceWeights; state.compensating = d.compensating;
+  state.defaultWeight = d.defaultWeight;
+}
+
+function saveState() {
+  var payload = {
+    preset: state.preset,
+    ruleWeights: state.ruleWeights,
+    serviceWeights: state.serviceWeights,
+    compensating: state.compensating
+  };
+  try { localStorage.setItem(LS_KEY, JSON.stringify(payload)); } catch (e) { /* ignore quota/availability */ }
+}
+
+// ---------- helpers ----------
+function el(tag, attrs, children) {
+  var node = document.createElement(tag);
+  if (attrs) {
+    for (var k in attrs) {
+      if (!Object.prototype.hasOwnProperty.call(attrs, k)) continue;
+      if (k === "class") node.className = attrs[k];
+      else if (k === "text") node.textContent = attrs[k];
+      else node.setAttribute(k, attrs[k]);
+    }
+  }
+  if (children) {
+    for (var i = 0; i < children.length; i++) {
+      var c = children[i];
+      if (c == null) continue;
+      if (typeof c === "string") node.appendChild(document.createTextNode(c));
+      else node.appendChild(c);
+    }
+  }
+  return node;
+}
+
+function clearNode(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+
+function bandFor(score) {
+  if (score === null || score === undefined) return null;
+  if (score >= 80) return "green";
+  if (score >= 50) return "amber";
+  return "red";
+}
+
+function fmtNum(x) {
+  if (x === null || x === undefined) return "—";
+  return (Math.round(x * 100) / 100).toString();
+}
+
+function markCustom() {
+  if (state.preset !== "custom") {
+    state.preset = "custom";
+  }
+}
+
+// ---------- tab switching ----------
+function activateTab(which) {
+  var rt = document.getElementById("tab-results");
+  var wt = document.getElementById("tab-weights");
+  var rv = document.getElementById("view-results");
+  var wv = document.getElementById("view-weights");
+  var resultsActive = which === "results";
+  rt.setAttribute("aria-selected", resultsActive ? "true" : "false");
+  wt.setAttribute("aria-selected", resultsActive ? "false" : "true");
+  rv.classList.toggle("active", resultsActive);
+  wv.classList.toggle("active", !resultsActive);
+}
+
+// ---------- file loading ----------
+function handleFiles(fileList) {
+  var files = Array.prototype.slice.call(fileList || []);
+  if (!files.length) return;
+  var pending = files.length;
+  files.forEach(function (file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var entry = { name: file.name, data: null, error: null };
+      try {
+        entry.data = JSON.parse(reader.result);
+      } catch (e) {
+        entry.error = "Not valid JSON: " + e.message;
+      }
+      upsertFile(entry);
+      pending--;
+      if (pending === 0) { renderLoadedFiles(); renderResults(); }
+    };
+    reader.onerror = function () {
+      upsertFile({ name: file.name, data: null, error: "Could not read file." });
+      pending--;
+      if (pending === 0) { renderLoadedFiles(); renderResults(); }
+    };
+    reader.readAsText(file);
+  });
+}
+
+function upsertFile(entry) {
+  for (var i = 0; i < loadedFiles.length; i++) {
+    if (loadedFiles[i].name === entry.name) { loadedFiles[i] = entry; return; }
+  }
+  loadedFiles.push(entry);
+}
+
+function removeFile(name) {
+  loadedFiles = loadedFiles.filter(function (f) { return f.name !== name; });
+  renderLoadedFiles();
+  renderResults();
+}
+
+function renderLoadedFiles() {
+  var wrap = document.getElementById("loadedFiles");
+  clearNode(wrap);
+  loadedFiles.forEach(function (f) {
+    var chip = el("span", { class: "file-chip" });
+    chip.appendChild(document.createTextNode(f.name)); // textContent-safe
+    var btn = el("button", { type: "button", "aria-label": "Remove file" });
+    btn.textContent = "×";
+    btn.addEventListener("click", function () { removeFile(f.name); });
+    chip.appendChild(btn);
+    wrap.appendChild(chip);
+  });
+
+  // parse errors
+  var errWrap = document.getElementById("parseErrors");
+  clearNode(errWrap);
+  loadedFiles.forEach(function (f) {
+    if (f.error) {
+      var box = el("div", { class: "parse-error" });
+      var fn = el("span", { class: "fn" });
+      fn.textContent = f.name;
+      box.appendChild(fn);
+      box.appendChild(document.createTextNode(" — " + f.error));
+      errWrap.appendChild(box);
+    }
+  });
+}
+
+// ---------- results rendering ----------
+function currentScoringArgs() {
+  return {
+    ruleWeights: state.ruleWeights,
+    serviceWeights: state.serviceWeights,
+    compensatingSet: new Set(state.compensating),
+    defaultWeight: state.defaultWeight
+  };
+}
+
+function renderResults() {
+  var container = document.getElementById("resultsContainer");
+  clearNode(container);
+
+  var valid = loadedFiles.filter(function (f) { return !f.error; });
+  if (!valid.length) {
+    var card = el("div", { class: "card" });
+    var empty = el("div", { class: "empty-state" });
+    empty.appendChild(el("div", { class: "icon", text: "🤿" }));
+    empty.appendChild(el("div", { class: "msg", text: "No results yet" }));
+    empty.appendChild(el("div", { class: "hint", text: "Load one or more ScubaGoggles JSON files above to see scores." }));
+    card.appendChild(empty);
+    container.appendChild(card);
+    return;
+  }
+
+  var args = currentScoringArgs();
+
+  valid.forEach(function (f) {
+    var result = computeScores(f.data, args.ruleWeights, args.serviceWeights, args.compensatingSet, args.defaultWeight);
+    container.appendChild(renderOneResult(f, result));
+  });
+}
+
+function renderOneResult(file, result) {
+  var card = el("div", { class: "card result-section" });
+
+  // Head: filename + gauge
+  var head = el("div", { class: "result-head" });
+
+  var meta = el("div", { class: "meta" });
+  var fn = el("div", { class: "filename" });
+  fn.textContent = file.name;
+  meta.appendChild(fn);
+  var fmeta = el("div", { class: "filemeta" });
+  var presetName = state.preset === "custom" ? "Custom" : state.preset.toUpperCase();
+  fmeta.textContent = "Active preset: " + presetName + " · scored " + new Date(result.generated_at).toLocaleString();
+  meta.appendChild(fmeta);
+  head.appendChild(meta);
+
+  var gauge = el("div", { class: "gauge" });
+  var overall = result.overall_score;
+  var band = bandFor(overall);
+  var scoreLine = el("div", { class: "score-line" });
+  var num = el("span", { class: "score-num" });
+  if (overall === null) {
+    num.textContent = "—";
+    num.classList.add("text-amber");
+  } else {
+    num.textContent = fmtNum(overall);
+    num.classList.add(band === "green" ? "text-green" : band === "amber" ? "text-amber" : "text-red");
+  }
+  scoreLine.appendChild(num);
+  if (overall !== null) scoreLine.appendChild(el("span", { class: "score-unit", text: "%" }));
+  var bandPill = el("span", { class: "score-band pill-" + (band || "amber") });
+  bandPill.textContent = overall === null ? "Not scored" : (band === "green" ? "Good" : band === "amber" ? "Needs work" : "At risk");
+  scoreLine.appendChild(bandPill);
+  gauge.appendChild(scoreLine);
+
+  var bar = el("div", { class: "bar" });
+  var fill = el("span", { class: "band-" + (band || "amber") });
+  fill.style.width = (overall === null ? 0 : Math.max(0, Math.min(100, overall))) + "%";
+  bar.appendChild(fill);
+  gauge.appendChild(bar);
+  head.appendChild(gauge);
+
+  card.appendChild(head);
+
+  // Determine if anything to show
+  var serviceKeys = Object.keys(result.per_service).sort();
+  if (result.data_quality.total_entries_seen === 0) {
+    var emptyRules = el("div", { class: "empty-state" });
+    emptyRules.appendChild(el("div", { class: "icon", text: "🔍" }));
+    emptyRules.appendChild(el("div", { class: "msg", text: "No rules found in this file" }));
+    emptyRules.appendChild(el("div", { class: "hint", text: "ScubaScore could not find any rule entries in a recognized shape (results / rules / checks / findings / items / Results / services)." }));
+    card.appendChild(emptyRules);
+    return card;
+  }
+
+  if (overall === null) {
+    var note = el("div", { class: "empty-state" });
+    note.appendChild(el("div", { class: "icon", text: "⚖️" }));
+    note.appendChild(el("div", { class: "msg", text: "No overall score" }));
+    note.appendChild(el("div", { class: "hint", text: "None of the services with evaluated rules are present in the active service-weight preset, so the overall roll-up has no weight. Per-service scores are shown below; switch presets or add the service in the Weights tab to include it." }));
+    card.appendChild(note);
+  }
+
+  // Per-service table
+  card.appendChild(el("div", { class: "section-label", text: "Per-service scores" }));
+  var psWrap = el("div", { class: "table-wrap" });
+  var psTable = el("table");
+  var thead = el("thead");
+  var hr = el("tr");
+  ["Service", "Score %", "Passed", "Failed", "Eval weight", "Passed weight", "Svc weight"].forEach(function (h, idx) {
+    var th = el("th", idx === 0 ? null : { class: "num" });
+    th.textContent = h;
+    hr.appendChild(th);
+  });
+  thead.appendChild(hr);
+  psTable.appendChild(thead);
+  var tbody = el("tbody");
+  serviceKeys.forEach(function (svc) {
+    var ps = result.per_service[svc];
+    var tr = el("tr");
+    var tdSvc = el("td");
+    tdSvc.appendChild(el("code", { class: "rule-id", text: svc }));
+    tr.appendChild(tdSvc);
+
+    var b = bandFor(ps.score);
+    var tdScore = el("td", { class: "num" });
+    if (ps.score === null) { tdScore.textContent = "—"; }
+    else {
+      tdScore.textContent = fmtNum(ps.score);
+      tdScore.classList.add(b === "green" ? "text-green" : b === "amber" ? "text-amber" : "text-red");
+    }
+    tr.appendChild(tdScore);
+
+    tr.appendChild(el("td", { class: "num", text: String(ps.passed_count) }));
+    tr.appendChild(el("td", { class: "num", text: String(ps.failed_count) }));
+    tr.appendChild(el("td", { class: "num", text: fmtNum(ps.evaluated_weight) }));
+    tr.appendChild(el("td", { class: "num", text: fmtNum(ps.passed_weight) }));
+
+    var svcW = Object.prototype.hasOwnProperty.call(state.serviceWeights, svc) ? state.serviceWeights[svc] : null;
+    var tdSvcW = el("td", { class: "num" });
+    if (svcW === null) {
+      tdSvcW.textContent = "—";
+      tdSvcW.title = "Not in active preset; excluded from overall.";
+      tdSvcW.classList.add("text-amber");
+    } else {
+      tdSvcW.textContent = fmtNum(svcW);
+    }
+    tr.appendChild(tdSvcW);
+
+    tbody.appendChild(tr);
+  });
+  psTable.appendChild(tbody);
+  psWrap.appendChild(psTable);
+  card.appendChild(psWrap);
+
+  // Top failures
+  var tf = topFailures(result, 5);
+  card.appendChild(el("div", { class: "section-label", text: "Top failures" }));
+  if (!tf.length) {
+    var noFail = el("div", { class: "empty-state" });
+    noFail.appendChild(el("div", { class: "icon", text: "✅" }));
+    noFail.appendChild(el("div", { class: "msg", text: "No failing rules" }));
+    card.appendChild(noFail);
+  } else {
+    var tfWrap = el("div", { class: "table-wrap" });
+    var tfTable = el("table");
+    var tfHead = el("thead");
+    var tfHr = el("tr");
+    ["Rule ID", "Service", "Weight", "", "Effective weight"].forEach(function (h, idx) {
+      var th = el("th", (idx === 2 || idx === 4) ? { class: "num" } : null);
+      th.textContent = h;
+      tfHr.appendChild(th);
+    });
+    tfHead.appendChild(tfHr);
+    tfTable.appendChild(tfHead);
+    var tfBody = el("tbody");
+    tf.forEach(function (item) {
+      var tr = el("tr");
+      var tdRule = el("td");
+      tdRule.appendChild(el("code", { class: "rule-id", text: item.rule == null ? "(no id)" : String(item.rule) }));
+      tr.appendChild(tdRule);
+
+      var tdS = el("td");
+      tdS.appendChild(el("code", { class: "rule-id", text: item.service == null ? "—" : String(item.service) }));
+      tr.appendChild(tdS);
+
+      tr.appendChild(el("td", { class: "num", text: fmtNum(item.weight) }));
+
+      var tdBadge = el("td");
+      if (item.is_compensated) {
+        var badge = el("span", { class: "badge-comp" });
+        badge.textContent = "compensated";
+        tdBadge.appendChild(badge);
+      }
+      tr.appendChild(tdBadge);
+
+      tr.appendChild(el("td", { class: "num", text: fmtNum(item.effective_weight) }));
+      tfBody.appendChild(tr);
+    });
+    tfTable.appendChild(tfBody);
+    tfWrap.appendChild(tfTable);
+    card.appendChild(tfWrap);
+  }
+
+  // Data quality line
+  var dq = el("div", { class: "dq-line" });
+  var unknownCount = result.data_quality.unknown_or_error_entries;
+  dq.appendChild(document.createTextNode("Data quality: "));
+  if (unknownCount > 0) {
+    var w = el("span", { class: "warn" });
+    w.textContent = unknownCount + " unknown/error";
+    dq.appendChild(w);
+    dq.appendChild(document.createTextNode(" of " + result.data_quality.total_entries_seen + " entries seen."));
+  } else {
+    dq.appendChild(document.createTextNode("0 unknown/error of " + result.data_quality.total_entries_seen + " entries seen."));
+  }
+  card.appendChild(dq);
+
+  return card;
+}
+
+// ---------- weights editor rendering ----------
+function renderWeightsEditor() {
+  // preset pills
+  var pills = document.querySelectorAll(".pill[data-preset]");
+  Array.prototype.forEach.call(pills, function (p) {
+    p.setAttribute("aria-pressed", p.getAttribute("data-preset") === state.preset ? "true" : "false");
+  });
+
+  // active preset note
+  var note = document.getElementById("activePresetNote");
+  clearNode(note);
+  if (state.preset === "custom") {
+    note.appendChild(document.createTextNode("Active set: "));
+    note.appendChild(el("strong", { text: "Custom" }));
+    note.appendChild(document.createTextNode(". The overall score includes the services listed in the service-weights table below."));
+  } else {
+    note.appendChild(document.createTextNode("Active preset: "));
+    note.appendChild(el("strong", { text: state.preset.toUpperCase() }));
+    note.appendChild(document.createTextNode(". Only services in this preset contribute to the overall score."));
+  }
+
+  // default weight label + input
+  document.getElementById("defaultWeightLabel").textContent = fmtNum(state.defaultWeight);
+  document.getElementById("defaultWeightInput").value = state.defaultWeight;
+
+  renderServiceWeightsTable();
+  renderRuleWeightsTable();
+  renderCompTable();
+}
+
+function renderServiceWeightsTable() {
+  var tbody = document.querySelector("#serviceWeightsTable tbody");
+  clearNode(tbody);
+  var keys = Object.keys(state.serviceWeights).sort();
+  keys.forEach(function (svc) {
+    var tr = el("tr");
+    var tdName = el("td");
+    var nameInput = el("input", { type: "text", value: svc });
+    nameInput.addEventListener("change", function () {
+      var newName = nameInput.value.trim();
+      if (!newName || newName === svc) { nameInput.value = svc; return; }
+      var v = state.serviceWeights[svc];
+      delete state.serviceWeights[svc];
+      state.serviceWeights[newName] = v;
+      markCustom();
+      onWeightsChanged();
+    });
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    var tdVal = el("td", { class: "num" });
+    var valInput = el("input", { type: "number", step: "0.1", min: "0", value: state.serviceWeights[svc] });
+    valInput.addEventListener("input", function () {
+      var n = parseFloat(valInput.value);
+      if (!isFinite(n)) return;
+      state.serviceWeights[svc] = n;
+      markCustom();
+      onWeightsChanged();
+    });
+    tdVal.appendChild(valInput);
+    var rm = el("button", { class: "btn small danger", type: "button", "aria-label": "Remove service" });
+    rm.textContent = "Remove";
+    rm.style.marginLeft = "8px";
+    rm.addEventListener("click", function () {
+      delete state.serviceWeights[svc];
+      markCustom();
+      onWeightsChanged();
+      renderWeightsEditor();
+    });
+    tdVal.appendChild(rm);
+    tr.appendChild(tdVal);
+    tbody.appendChild(tr);
+  });
+}
+
+function renderRuleWeightsTable() {
+  var tbody = document.querySelector("#ruleWeightsTable tbody");
+  clearNode(tbody);
+  var keys = Object.keys(state.ruleWeights).sort();
+  keys.forEach(function (key) {
+    var tr = el("tr");
+
+    var tdKey = el("td");
+    var keyInput = el("input", { type: "text", value: key });
+    keyInput.addEventListener("change", function () {
+      var newKey = keyInput.value.trim();
+      if (!newKey || newKey === key) { keyInput.value = key; return; }
+      var v = state.ruleWeights[key];
+      delete state.ruleWeights[key];
+      state.ruleWeights[newKey] = v;
+      markCustom();
+      onWeightsChanged();
+      renderRuleWeightsTable();
+    });
+    tdKey.appendChild(keyInput);
+    tr.appendChild(tdKey);
+
+    var tdVal = el("td", { class: "num" });
+    var valInput = el("input", { type: "number", step: "0.1", min: "0", value: state.ruleWeights[key] });
+    valInput.addEventListener("input", function () {
+      var n = parseFloat(valInput.value);
+      if (!isFinite(n)) return;
+      state.ruleWeights[key] = n;
+      markCustom();
+      onWeightsChanged();
+    });
+    tdVal.appendChild(valInput);
+    tr.appendChild(tdVal);
+
+    var tdType = el("td");
+    var isPrefix = key.charAt(key.length - 1) === ".";
+    var typeTag = el("span", { class: isPrefix ? "badge-comp" : "" });
+    typeTag.textContent = isPrefix ? "prefix" : "exact";
+    if (!isPrefix) { typeTag.style.color = "var(--text-faint)"; typeTag.style.fontSize = "12px"; }
+    tdType.appendChild(typeTag);
+    tr.appendChild(tdType);
+
+    var tdRm = el("td");
+    var rm = el("button", { class: "btn small danger", type: "button" });
+    rm.textContent = "Remove";
+    rm.addEventListener("click", function () {
+      delete state.ruleWeights[key];
+      markCustom();
+      onWeightsChanged();
+      renderRuleWeightsTable();
+    });
+    tdRm.appendChild(rm);
+    tr.appendChild(tdRm);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function renderCompTable() {
+  var tbody = document.querySelector("#compTable tbody");
+  clearNode(tbody);
+  state.compensating.forEach(function (ruleId, idx) {
+    var tr = el("tr");
+    var tdId = el("td");
+    var input = el("input", { type: "text", value: ruleId });
+    input.addEventListener("change", function () {
+      var v = input.value.trim();
+      state.compensating[idx] = v;
+      markCustom();
+      onWeightsChanged();
+    });
+    tdId.appendChild(input);
+    tr.appendChild(tdId);
+
+    var tdRm = el("td");
+    var rm = el("button", { class: "btn small danger", type: "button" });
+    rm.textContent = "Remove";
+    rm.addEventListener("click", function () {
+      state.compensating.splice(idx, 1);
+      markCustom();
+      onWeightsChanged();
+      renderCompTable();
+    });
+    tdRm.appendChild(rm);
+    tr.appendChild(tdRm);
+    tbody.appendChild(tr);
+  });
+}
+
+// Called whenever any weight changes: persist, refresh editor chrome (pills/note), re-score.
+function onWeightsChanged() {
+  saveState();
+  // refresh preset pills + note without rebuilding the input the user is typing in
+  var pills = document.querySelectorAll(".pill[data-preset]");
+  Array.prototype.forEach.call(pills, function (p) {
+    p.setAttribute("aria-pressed", p.getAttribute("data-preset") === state.preset ? "true" : "false");
+  });
+  var note = document.getElementById("activePresetNote");
+  clearNode(note);
+  if (state.preset === "custom") {
+    note.appendChild(document.createTextNode("Active set: "));
+    note.appendChild(el("strong", { text: "Custom" }));
+    note.appendChild(document.createTextNode(". The overall score includes the services listed in the service-weights table below."));
+  } else {
+    note.appendChild(document.createTextNode("Active preset: "));
+    note.appendChild(el("strong", { text: state.preset.toUpperCase() }));
+    note.appendChild(document.createTextNode(". Only services in this preset contribute to the overall score."));
+  }
+  document.getElementById("defaultWeightLabel").textContent = fmtNum(state.defaultWeight);
+  renderResults();
+}
+
+// ---------- preset selection ----------
+function applyPreset(presetName) {
+  if (presetName === "custom") {
+    state.preset = "custom";
+    saveState();
+    renderWeightsEditor();
+    renderResults();
+    return;
+  }
+  var d = defaultStateForPreset(presetName);
+  // Preset switch resets service weights (which services contribute) and rule weights to canonical defaults.
+  state.preset = d.preset;
+  state.ruleWeights = d.ruleWeights;
+  state.serviceWeights = d.serviceWeights;
+  // keep compensating list as-is across preset switches (it is user-curated)
+  state.defaultWeight = d.defaultWeight;
+  saveState();
+  renderWeightsEditor();
+  renderResults();
+}
+
+// ---------- export / import ----------
+function exportWeights() {
+  var payload = {
+    preset: state.preset,
+    ruleWeights: state.ruleWeights,
+    serviceWeights: state.serviceWeights,
+    compensating: state.compensating,
+    defaultWeight: state.defaultWeight
+  };
+  var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "scubascore-weights.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+}
+
+function importWeights(file) {
+  var reader = new FileReader();
+  reader.onload = function () {
+    try {
+      var parsed = JSON.parse(reader.result);
+      if (!parsed || typeof parsed !== "object") throw new Error("not an object");
+      if (parsed.ruleWeights && typeof parsed.ruleWeights === "object") state.ruleWeights = parsed.ruleWeights;
+      if (parsed.serviceWeights && typeof parsed.serviceWeights === "object") state.serviceWeights = parsed.serviceWeights;
+      if (Array.isArray(parsed.compensating)) state.compensating = parsed.compensating.slice();
+      if (typeof parsed.defaultWeight === "number" && isFinite(parsed.defaultWeight)) state.defaultWeight = parsed.defaultWeight;
+      state.preset = (parsed.preset === "m365" || parsed.preset === "gws") ? parsed.preset : "custom";
+      saveState();
+      renderWeightsEditor();
+      renderResults();
+    } catch (e) {
+      alert("Could not import weights: " + e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ---------- wiring ----------
+function init() {
+  loadState();
+
+  // Tabs
+  document.getElementById("tab-results").addEventListener("click", function () { activateTab("results"); });
+  document.getElementById("tab-weights").addEventListener("click", function () { activateTab("weights"); });
+
+  // Dropzone
+  var dz = document.getElementById("dropzone");
+  var fileInput = document.getElementById("fileInput");
+  dz.addEventListener("click", function () { fileInput.click(); });
+  dz.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener("change", function () { handleFiles(fileInput.files); fileInput.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); dz.classList.add("drag"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); dz.classList.remove("drag"); });
+  });
+  dz.addEventListener("drop", function (e) {
+    if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+  });
+
+  // Preset pills
+  var pills = document.querySelectorAll(".pill[data-preset]");
+  Array.prototype.forEach.call(pills, function (p) {
+    p.addEventListener("click", function () { applyPreset(p.getAttribute("data-preset")); });
+  });
+
+  // Buttons
+  document.getElementById("btnReset").addEventListener("click", function () {
+    var target = state.preset === "custom" ? "gws" : state.preset;
+    applyPreset(target);
+  });
+  document.getElementById("btnExport").addEventListener("click", exportWeights);
+  var importInput = document.getElementById("importInput");
+  document.getElementById("btnImport").addEventListener("click", function () { importInput.click(); });
+  importInput.addEventListener("change", function () {
+    if (importInput.files && importInput.files[0]) importWeights(importInput.files[0]);
+    importInput.value = "";
+  });
+
+  document.getElementById("btnAddService").addEventListener("click", function () {
+    var name = "service" + (Object.keys(state.serviceWeights).length + 1);
+    var i = 1; while (Object.prototype.hasOwnProperty.call(state.serviceWeights, name)) { name = "service" + (++i); }
+    state.serviceWeights[name] = 1;
+    markCustom();
+    saveState();
+    renderWeightsEditor();
+    renderResults();
+  });
+  document.getElementById("btnAddRule").addEventListener("click", function () {
+    var key = "NEW.RULE." ;
+    var i = 1; while (Object.prototype.hasOwnProperty.call(state.ruleWeights, key)) { key = "NEW.RULE." + (i++); }
+    state.ruleWeights[key] = 1;
+    markCustom();
+    saveState();
+    renderWeightsEditor();
+    renderResults();
+  });
+  document.getElementById("btnAddComp").addEventListener("click", function () {
+    state.compensating.push("");
+    markCustom();
+    saveState();
+    renderCompTable();
+  });
+
+  document.getElementById("defaultWeightInput").addEventListener("input", function () {
+    var n = parseFloat(this.value);
+    if (!isFinite(n)) return;
+    state.defaultWeight = n;
+    markCustom();
+    onWeightsChanged();
+  });
+
+  renderWeightsEditor();
+  renderLoadedFiles();
+  renderResults();
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
