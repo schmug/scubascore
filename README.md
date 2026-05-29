@@ -2,6 +2,8 @@
 
 Score CISA SCuBA assessment output — **entirely in your browser**.
 
+**▶ [Try it live](https://schmug.github.io/scubascore/)** — nothing to install; your data never leaves the page.
+
 ScubaScore is a single, self-contained `index.html` that turns the JSON
 produced by CISA's [ScubaGoggles](https://github.com/cisagov/ScubaGoggles)
 (Google Workspace) and [ScubaGear](https://github.com/cisagov/ScubaGear)
@@ -22,8 +24,9 @@ never leaves the machine.
 
 ## How to use
 
-1. **Open `index.html` in any modern browser** — double-click the file, or
-   drag it onto a browser window. No web server required.
+1. **Open the app.** Use the [hosted version](https://schmug.github.io/scubascore/),
+   or run it locally by opening `index.html` in any modern browser — double-click
+   the file, or drag it onto a browser window. No web server required either way.
 2. **Load your assessment JSON.** On the **Results** tab, drag and drop one or
    more ScubaGoggles / ScubaGear `.json` files onto the drop zone, or click it
    to pick files. Multiple files are allowed; each gets its own scorecard.
