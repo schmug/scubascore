@@ -104,4 +104,4 @@ saved locally in your browser's `localStorage`.
 
 ## License
 
-See repository for license details.
+Released under the [MIT License](LICENSE).
