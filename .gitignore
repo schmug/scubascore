@@ -1,16 +1,14 @@
+# OS / editor cruft
 *:Zone.Identifier
-*.pyc
-CLAUDE.md
-/tests
-results_*
-results/
-scubascore.db
-__pycache__/
-
-# Auto Claude data directory
-.auto-claude/
-.claude_settings.json
 .DS_Store
 
-M365BaselineConformance_*/
+# Local Claude Code config (per-machine, not shared)
+CLAUDE.md
+.claude/settings.local.json
+.claude/launch.json
+.claude_settings.json
+
+# Auto Claude tooling artifacts
+.auto-claude/
+.auto-claude-status
 .auto-claude-security.json
