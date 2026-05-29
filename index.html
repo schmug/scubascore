@@ -358,6 +358,13 @@ function normalizeRule(r, defaultService) {
   var verdict = normalizeVerdict(r.verdict || r.Result || r.result || r.status);
   var service = r.service || r.product || r.category || defaultService;
   if (!service) service = inferService(ruleId);
+  // Canonicalize the service name to lowercase so it matches the lowercase
+  // service-weight preset keys (aad, exo, gmail, ...). Without this, the M365
+  // "Results -> Controls" shape — whose Results KEY (e.g. "AAD", "EXO") is used
+  // as the service and is UPPERCASE in real ScubaGear exports — never matches a
+  // preset key, zeroing the service-weighted overall ("not scored"). inferService
+  // already lowercases, so this is idempotent for the inferred path.
+  if (typeof service === "string") service = service.toLowerCase();
   var severity = r.severity || r.Criticality || r.priority || r.weight_class;
   return { ruleId: ruleId, verdict: verdict, service: service, severity: severity };
 }
