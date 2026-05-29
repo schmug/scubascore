@@ -1,8 +1,0 @@
-service_weights:
-  exchange: 0.20
-  onedrive: 0.20
-  common: 0.20
-  sharepoint: 0.15
-  teams: 0.15
-  groups: 0.05
-  calendar: 0.05
