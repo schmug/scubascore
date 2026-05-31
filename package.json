@@ -1,0 +1,14 @@
+{
+  "name": "scubascore",
+  "version": "1.0.0",
+  "description": "Browser-based compliance scoring for CISA SCuBA (M365 & Google Workspace) output. 100% client-side.",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/schmug/scubascore.git"
+  },
+  "license": "MIT"
+}

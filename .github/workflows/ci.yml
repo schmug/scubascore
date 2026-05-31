@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: the test job only needs to read the repo.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Scoring engine tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # No dependencies to install — the test extracts the engine from
+      # index.html and runs on Node's built-in test runner.
+      - name: Run scoring engine tests
+        run: npm test
