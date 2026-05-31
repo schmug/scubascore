@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/schmug/scubascore/security/advisories/new
+    about: Please report security issues privately via a GitHub security advisory, not a public issue.
+  - name: CISA SCuBA tools (ScubaGear / ScubaGoggles)
+    url: https://github.com/cisagov
+    about: Questions about generating the assessment JSON belong with CISA's upstream tools.
