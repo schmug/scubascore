@@ -1,0 +1,58 @@
+name: Bug report
+description: Something in ScubaScore doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! ScubaScore runs entirely in
+        your browser, so details about your input and environment help a lot.
+
+        ⚠️ **Do not paste real assessment data or anything sensitive.** If the
+        bug depends on the input, please share a *minimal, anonymized* snippet.
+        For security vulnerabilities, use the
+        [Security tab](https://github.com/schmug/scubascore/security/advisories/new)
+        instead of a public issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I load X, the overall score shows Y but I expected Z.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce it?
+      placeholder: |
+        1. Open the app
+        2. Load this file / click this tab
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: sample-input
+    attributes:
+      label: Minimal sample input (optional)
+      description: A small, anonymized JSON snippet that triggers the bug. Do NOT include real/sensitive data.
+      render: json
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Browser & OS
+      description: Which browser (and version) and operating system?
+      placeholder: Firefox 126 on macOS 14
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: How are you running it?
+      description: Hosted GitHub Pages site, or a local copy of index.html?
+      placeholder: https://schmug.github.io/scubascore/  (or local file)
+    validations:
+      required: false

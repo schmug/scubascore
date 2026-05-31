@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an enhancement or new capability for ScubaScore
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Keep in mind ScubaScore is intentionally a single,
+        self-contained `index.html` with **no server and no network access** —
+        proposals should fit that 100%-client-side model.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: The use case or pain point behind the request.
+      placeholder: When scoring multiple tenants, I can't easily compare them because ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like ScubaScore to do.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, or how you work around this today.
+    validations:
+      required: false
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Fit with ScubaScore's model
+      options:
+        - label: This works without any server or network request (fully client-side).
+          required: false
+        - label: This keeps the project as a single self-contained file (or I've noted why not).
+          required: false
