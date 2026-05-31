@@ -2,6 +2,10 @@
 *:Zone.Identifier
 .DS_Store
 
+# Node (no runtime deps, but keep stray installs out of the tree)
+node_modules/
+npm-debug.log*
+
 # Local Claude Code config (per-machine, not shared)
 CLAUDE.md
 .claude/settings.local.json

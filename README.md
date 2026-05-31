@@ -110,6 +110,22 @@ ScubaScore is designed to be safe to run against sensitive compliance data:
 The only thing stored anywhere is your custom weight configuration, which is
 saved locally in your browser's `localStorage`.
 
+## Development
+
+ScubaScore ships as a single `index.html` with no build step. The pure scoring
+functions live in a DOM-free region of that file (delimited by
+`// === SCORING ENGINE START/END ===`) and are covered by a dependency-free test
+suite that extracts the engine from the shipped `index.html` at runtime and
+asserts its behavior:
+
+```sh
+npm test        # or: node --test
+```
+
+The tests require only Node (≥ 18, for the built-in test runner) — there is
+nothing to `npm install`. They run automatically on every push and pull request
+via GitHub Actions (`.github/workflows/ci.yml`).
+
 ## License
 
 Released under the [MIT License](LICENSE).
