@@ -397,6 +397,8 @@ function normalizeVerdict(v) {
   if (s === "PASS" || s === "PASSED" || s === "TRUE") return "PASS";
   if (s === "FAIL" || s === "FAILED" || s === "FALSE") return "FAIL";
   if (s === "N/A" || s === "NA" || s === "NOT APPLICABLE") return "NA";
+  // Non-binary assessment outcomes are unscored, not unreadable data.
+  if (s === "WARNING" || s === "NO EVENTS FOUND" || s === "MANUAL") return "NA";
   if (s === "UNKNOWN" || s === "ERROR") return "UNKNOWN";
   return s;
 }

@@ -65,9 +65,10 @@ test("normalizeVerdict canonicalizes verdict spellings", () => {
   assert.strictEqual(eng.normalizeVerdict("N/A"), "NA");
   assert.strictEqual(eng.normalizeVerdict("Not Applicable"), "NA");
   assert.strictEqual(eng.normalizeVerdict(null), "UNKNOWN");
-  // Unrecognized verdicts (e.g. ScubaGoggles "Warning") pass through uppercased
-  // and are counted as unknown/unscored, not pass or fail.
-  assert.strictEqual(eng.normalizeVerdict("Warning"), "WARNING");
+  for (const verdict of ["Warning", "wArNiNg", " No events found ", "NO EVENTS FOUND", "Manual", "mAnUaL"]) {
+    assert.strictEqual(eng.normalizeVerdict(verdict), "NA");
+  }
+  assert.strictEqual(eng.normalizeVerdict("unrecognized"), "UNRECOGNIZED");
 });
 
 test("inferService matches the service segment case-insensitively", () => {
@@ -155,7 +156,7 @@ test("data quality counts unknown/error entries; NA is skipped", () => {
     results: [
       { rule_id: "A.AAA.1.1", verdict: "Pass" },
       { rule_id: "A.AAA.1.2", verdict: "N/A" },
-      { rule_id: "A.AAA.1.3", verdict: "Warning" }, // unknown bucket
+      { rule_id: "A.AAA.1.3", verdict: "Error" }, // unknown bucket
     ],
   };
   const result = eng.computeScores(data, {}, { aaa: 1 }, new Set(), 1);
@@ -231,4 +232,28 @@ test("characterization: fixture scores 25 today due to drive/drivedocs mismatch 
 
   assert.strictEqual(result.data_quality.total_entries_seen, 5);
   assert.strictEqual(result.data_quality.unknown_or_error_entries, 0);
+});
+
+test("ScubaGoggles non-binary verdict fixture is unscored without inflating data quality", () => {
+  const data = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "non-binary-verdicts.json"), "utf8"));
+  const result = eng.computeScores(data, { "GWS.GMAIL.PASS": 2, "GWS.GMAIL.FAIL": 2, "GWS.GMAIL.COMPENSATED": 4 }, { gmail: 1 }, new Set(["GWS.GMAIL.COMPENSATED", "GWS.GMAIL.WARNING"]), 1);
+  assert.strictEqual(result.overall_score, 50);
+  assert.strictEqual(result.per_service.gmail.evaluated_weight, 8);
+  assert.strictEqual(result.per_service.gmail.passed_weight, 4);
+  assert.strictEqual(result.per_service.gmail.passed_count, 1);
+  assert.strictEqual(result.per_service.gmail.failed_count, 2);
+  assert.deepStrictEqual(result.data_quality, { total_entries_seen: 10, unknown_or_error_entries: 3 });
+  assert.deepStrictEqual(result.per_service.gmail.failed, [["GWS.GMAIL.FAIL", 2, false], ["GWS.GMAIL.COMPENSATED", 4, true]]);
+});
+
+test("each non-binary verdict alone produces no score and no data error", () => {
+  for (const verdict of ["Warning", "No events found", "Manual"]) {
+    const result = eng.computeScores({ results: [{ rule_id: "GWS.GMAIL.1", verdict }] }, {}, { gmail: 1 }, new Set(["GWS.GMAIL.1"]), 1);
+    assert.strictEqual(result.overall_score, null);
+    assert.strictEqual(result.per_service.gmail.score, null);
+    assert.strictEqual(result.per_service.gmail.evaluated_weight, 0);
+    assert.strictEqual(result.per_service.gmail.passed_count, 0);
+    assert.strictEqual(result.per_service.gmail.failed_count, 0);
+    assert.deepStrictEqual(result.data_quality, { total_entries_seen: 1, unknown_or_error_entries: 0 });
+  }
 });

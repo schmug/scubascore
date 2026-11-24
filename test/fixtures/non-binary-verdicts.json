@@ -1,0 +1,50 @@
+{
+  "Results": {
+    "gmail": [
+      {
+        "Controls": [
+          {
+            "Control ID": "GWS.GMAIL.PASS",
+            "Result": "Pass"
+          },
+          {
+            "Control ID": "GWS.GMAIL.FAIL",
+            "Result": "Fail"
+          },
+          {
+            "Control ID": "GWS.GMAIL.COMPENSATED",
+            "Result": "Fail"
+          },
+          {
+            "Control ID": "GWS.GMAIL.WARNING",
+            "Result": "wArNiNg"
+          },
+          {
+            "Control ID": "GWS.GMAIL.NOEVENTS",
+            "Result": " No events found "
+          },
+          {
+            "Control ID": "GWS.GMAIL.MANUAL",
+            "Result": "mAnUaL"
+          },
+          {
+            "Control ID": "GWS.GMAIL.NA",
+            "Result": "N/A"
+          },
+          {
+            "Control ID": "GWS.GMAIL.UNKNOWN",
+            "Result": "Unknown"
+          },
+          {
+            "Control ID": "GWS.GMAIL.ERROR",
+            "Result": "Error"
+          },
+          {
+            "Control ID": "GWS.GMAIL.OTHER",
+            "Result": "Unexpected"
+          }
+        ]
+      }
+    ]
+  }
+}

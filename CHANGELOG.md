@@ -9,6 +9,14 @@ releases, so versions below map to project milestones rather than git tags.
 
 ## [Unreleased]
 
+### Fixed
+
+- Treat ScubaGoggles `Warning`, `No events found`, and `Manual` verdicts as
+  not applicable, excluding them from scoring without counting them as unknown
+  or unreadable entries (#9). Warning is deliberately unscored, not pass/fail
+  or partial credit. Add a regression fixture covering these verdicts alongside
+  pass/fail, compensating credit, and genuinely unknown entries.
+
 ### Added
 
 - Dependency-free scoring-engine test suite (`test/score.test.cjs`) that extracts

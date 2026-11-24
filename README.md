@@ -89,7 +89,14 @@ ScubaScore converts pass/fail verdicts into a weighted percentage:
 2. **Compensating credit.** A failed rule listed as a compensating control
    contributes **50%** of its weight to the numerator while keeping its full
    weight in the denominator. Other failures contribute 0%. Rules marked `NA`
-   are skipped entirely.
+   are skipped entirely. `Warning`, `No events found`, and `Manual` are also
+   treated as `NA` (case-insensitively): they do not affect scores or increase
+   the unknown/unreadable count, but still count toward total entries seen.
+   `Warning` is excluded rather than assigned pass/fail or partial credit because
+   a soft finding does not establish a binary compliance result. This is a
+   ScubaScore scoring choice, not a CISA scoring rule. A service containing only
+   skipped verdicts has no score. Unknown/error and other unrecognized verdicts
+   remain unscored and increase the unknown/unreadable count.
 3. **Per-service percentage.** For each service,
    `score = passed_weight / evaluated_weight × 100`.
 4. **Service-weighted overall.** The overall score is the average of
